@@ -59,6 +59,26 @@
         <span class="nav-icon" aria-hidden="true">&#9711;</span>
         <span class="nav-label">Reports</span>
       </button>
+      <button class="nav-item" data-page="budget" type="button">
+        <span class="nav-icon" aria-hidden="true">&#128200;</span>
+        <span class="nav-label">Budget</span>
+      </button>
+      <button class="nav-item" data-page="savings" type="button">
+        <span class="nav-icon" aria-hidden="true">&#9733;</span>
+        <span class="nav-label">Savings</span>
+      </button>
+      <button class="nav-item" data-page="calendar" type="button">
+        <span class="nav-icon" aria-hidden="true">&#128197;</span>
+        <span class="nav-label">Calendar</span>
+      </button>
+      <button class="nav-item" data-page="challenges" type="button">
+        <span class="nav-icon" aria-hidden="true">&#127919;</span>
+        <span class="nav-label">Challenges</span>
+      </button>
+      <button class="nav-item" data-page="payments" type="button">
+        <span class="nav-icon" aria-hidden="true">&#128179;</span>
+        <span class="nav-label">Payments</span>
+      </button>
       <button class="nav-item" data-page="settings" type="button">
         <span class="nav-icon" aria-hidden="true">&#9881;</span>
         <span class="nav-label">Settings</span>
@@ -129,6 +149,10 @@
             <span>&#8634;</span> This Month
           </button>
         </div>
+        <div class="dashboard-welcome">
+          <h2 id="dashboardGreeting">Welcome back</h2>
+          <p>Your student finances, clearly organized.</p>
+        </div>
 
         <!-- 4 Key Stat Cards -->
         <div class="summary-grid">
@@ -161,16 +185,67 @@
 
           <div class="summary-card accent-count">
             <div class="summary-top">
-              <span class="summary-icon">&#8776;</span>
-              <span class="summary-label">Transactions</span>
+              <span class="summary-icon">&#8377;</span>
+              <span class="summary-label">Today's Spending Limit</span>
             </div>
-            <div class="summary-value" id="statCount" data-raw-value="0">0</div>
-            <div class="summary-sub" id="statCountSub">Recorded this month</div>
+            <div class="summary-value" id="dailyLimitAmount">₹0</div>
+            <div class="summary-sub daily-limit-summary">
+              <strong id="dailyLimitLeft">₹0 left today</strong>
+              <span id="dailyLimitMeta">₹0 remaining balance · 0 days · ₹0 spent today</span>
+            </div>
           </div>
         </div>
 
-        <!-- Trend Chart & Budget Section -->
-        <div class="dash-grid">
+        <div class="dash-grid dash-grid-2 student-dashboard-widgets">
+          <article class="panel home-money-card">
+            <div class="panel-head panel-head-row">
+              <div>
+                <h2>Money From Home</h2>
+                <p>Tracked in your income transactions</p>
+              </div>
+              <button class="link-btn-subtle" type="button" data-open-transactions>Manage</button>
+            </div>
+            <div class="home-money-total" id="dashboardHomeMoneyTotal">₹0</div>
+            <p class="settings-copy" id="dashboardHomeMoneyLatest">No money from home recorded this month.</p>
+            <button class="btn btn-secondary" type="button" data-open-transactions>Record money received</button>
+          </article>
+          <article class="panel panel-budget">
+            <div class="panel-head panel-head-row">
+              <div><h2>Monthly Budget</h2><p id="budgetPanelSub">Usage for selected month</p></div>
+              <button class="link-btn-subtle" type="button" data-dashboard-page="budget">Manage</button>
+            </div>
+            <div class="budget-figures">
+              <div><span class="fig-label">Spent</span><span class="fig-value" id="budgetSpent" data-raw-value="0">₹0</span></div>
+              <div><span class="fig-label">Budget</span><span class="fig-value" id="budgetTotal" data-raw-value="0">₹0</span></div>
+            </div>
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="budgetProgressBar">
+              <div class="progress-fill" id="budgetProgress" style="width:0%"></div>
+            </div>
+            <div class="budget-footline">
+              <span class="budget-usage" id="budgetUsage">
+                <span id="budgetWarningIcon" class="budget-warning-icon" role="img" aria-label="Budget usage warning" hidden>&#9888;</span>
+                <span id="budgetPercent">0% used</span>
+              </span>
+              <span id="budgetRemaining">₹0 remaining</span>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-head panel-head-row">
+              <div><h2>Savings Progress</h2><p id="dashboardSavingsSummary">No savings goals yet.</p></div>
+              <button class="link-btn-subtle" type="button" data-dashboard-page="savings">View goals</button>
+            </div>
+            <div id="dashboardSavingsProgress"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head panel-head-row">
+              <div><h2>Upcoming Payment</h2><p id="dashboardPaymentSummary">No upcoming payments.</p></div>
+              <button class="link-btn-subtle" type="button" data-dashboard-page="payments">View payments</button>
+            </div>
+          </article>
+        </div>
+
+        <!-- Spending trend -->
+        <div class="dash-grid trend-only">
           <div class="panel panel-chart">
             <div class="panel-head panel-head-row">
               <div>
@@ -188,29 +263,6 @@
             </div>
           </div>
 
-          <div class="panel panel-budget">
-            <div class="panel-head">
-              <h2>Monthly Budget</h2>
-              <p id="budgetPanelSub">Usage for selected month</p>
-            </div>
-            <div class="budget-figures">
-              <div><span class="fig-label">Spent</span><span class="fig-value" id="budgetSpent" data-raw-value="0">₹0</span></div>
-              <div><span class="fig-label">Budget</span><span class="fig-value" id="budgetTotal" data-raw-value="0">₹0</span></div>
-            </div>
-            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="budgetProgressBar">
-              <div class="progress-fill" id="budgetProgress" style="width:0%"></div>
-            </div>
-            <div class="budget-footline">
-              <span class="budget-usage" id="budgetUsage">
-                <span id="budgetWarningIcon" class="budget-warning-icon" role="img" aria-label="Budget usage warning" hidden>&#9888;</span>
-                <span id="budgetPercent">0% used</span>
-              </span>
-              <span id="budgetRemaining">₹0 remaining</span>
-            </div>
-            <div class="budget-quick-actions">
-              <button class="link-btn-subtle" id="budgetChangeBtn" type="button">Adjust Budget Target &rarr;</button>
-            </div>
-          </div>
         </div>
 
         <!-- 3-Column Bottom Dashboard Grid -->
@@ -251,10 +303,223 @@
             <ul class="recent-list" id="recentList"></ul>
           </div>
         </div>
+        <div class="student-dashboard-summaries">
+          <article class="panel">
+            <div class="panel-head panel-head-row">
+              <div><h2>Smart Budget Alerts</h2><p>Based on this month's recorded spending</p></div>
+              <button class="link-btn-subtle" type="button" data-dashboard-page="budget">View budget</button>
+            </div>
+            <ul class="feature-list smart-alert-list" id="dashboardSmartAlerts"></ul>
+          </article>
+          <article class="panel">
+            <div class="panel-head panel-head-row">
+              <div><h2>No-Spend Challenge</h2><p id="dashboardChallengeSummary">No active challenge.</p></div>
+              <button class="link-btn-subtle" type="button" data-dashboard-page="challenges">Open challenges</button>
+            </div>
+            <div class="goal-progress-track"><span id="dashboardChallengeProgress" style="width:0%"></span></div>
+          </article>
+          <article class="panel dashboard-quick-actions">
+            <div class="panel-head"><h2>Quick Actions</h2><p>Go directly to a common task.</p></div>
+            <div class="feature-form-actions">
+              <button class="btn btn-secondary" type="button" data-dashboard-page="transactions">Transactions</button>
+              <button class="btn btn-secondary" type="button" data-dashboard-page="budget">Set a budget</button>
+              <button class="btn btn-secondary" type="button" data-dashboard-page="savings">Add a savings goal</button>
+              <button class="btn btn-secondary" type="button" data-dashboard-page="payments">Add a reminder</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===== BUDGET PAGE ===== -->
+      <section class="page" id="page-budget" aria-labelledby="pageTitle">
+        <div class="student-tools-grid">
+          <article class="panel settings-card">
+            <div class="panel-head">
+              <h2>Monthly Budget</h2>
+              <p>Set your spending target and track it against recorded expenses.</p>
+            </div>
+            <form class="inline-form" id="budgetForm">
+              <label for="budgetInput">Monthly Budget Limit (₹)</label>
+              <div class="inline-form-row">
+                <input type="number" id="budgetInput" min="0" step="1" inputmode="numeric" required placeholder="10000">
+                <button class="btn btn-primary" type="submit">Save Target</button>
+              </div>
+            </form>
+            <div class="budget-figures">
+              <div><span class="fig-label">Spent this month</span><span class="fig-value" id="categoryBudgetMonthlySpent">₹0</span></div>
+              <div><span class="fig-label">Monthly limit</span><span class="fig-value" id="categoryBudgetMonthlyLimit">₹0</span></div>
+            </div>
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="categoryBudgetProgressBar">
+              <div class="progress-fill" id="categoryBudgetProgress" style="width:0%"></div>
+            </div>
+            <p class="settings-copy" id="categoryBudgetMonthlySummary"></p>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <h2>Category Budgets</h2>
+              <p>Set optional monthly limits and compare with actual transaction spending.</p>
+            </div>
+            <form id="categoryBudgetsForm" class="feature-form">
+              <div class="category-budget-grid" id="categoryBudgetInputs"></div>
+              <button class="btn btn-primary" type="submit">Save category budgets</button>
+            </form>
+            <div class="category-budget-progress-list" id="categoryBudgetProgressList"></div>
+          </article>
+          <article class="panel feature-panel-wide">
+            <div class="panel-head">
+              <h2>Smart Budget Alerts</h2>
+              <p>Rule-based reminders calculated from your real transactions.</p>
+            </div>
+            <ul class="feature-list smart-alert-list" id="smartBudgetAlerts"></ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===== SAVINGS PAGE ===== -->
+      <section class="page" id="page-savings" aria-labelledby="pageTitle">
+        <div class="student-tools-grid">
+          <article class="panel feature-panel-wide">
+            <div class="panel-head">
+              <h2>Savings Goals</h2>
+              <p>Track progress without deducting goal contributions from your available balance.</p>
+            </div>
+            <form id="savingsGoalForm" class="feature-form">
+              <input type="hidden" id="savingsGoalId">
+              <div class="feature-form-grid">
+                <label>Goal name<input id="savingsGoalName" type="text" maxlength="60" required placeholder="New Phone"></label>
+                <label>Target amount (₹)<input id="savingsGoalTarget" type="number" min="0.01" step="0.01" required></label>
+                <label>Already saved (₹)<input id="savingsGoalSaved" type="number" min="0" step="0.01" value="0" required></label>
+                <label>Target date<input id="savingsGoalDate" type="date" required></label>
+                <label class="feature-field-wide">Note (optional)<input id="savingsGoalNote" type="text" maxlength="140"></label>
+              </div>
+              <div class="feature-form-actions">
+                <button class="btn btn-primary" type="submit" id="savingsGoalSubmit">Add goal</button>
+                <button class="btn btn-ghost" type="button" id="savingsGoalCancel" hidden>Cancel edit</button>
+              </div>
+            </form>
+            <div class="goal-list" id="savingsGoalsList"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===== CALENDAR PAGE ===== -->
+      <section class="page" id="page-calendar" aria-labelledby="pageTitle">
+        <article class="panel">
+          <div class="panel-head panel-head-row">
+            <div>
+              <h2>Expense Calendar</h2>
+              <p id="expenseCalendarMonthTotal">Daily totals from your transactions.</p>
+            </div>
+            <div class="calendar-controls">
+              <button class="icon-btn icon-btn-sm" type="button" id="expenseCalendarPrev" aria-label="Previous month">&#8249;</button>
+              <strong id="expenseCalendarMonth"></strong>
+              <button class="icon-btn icon-btn-sm" type="button" id="expenseCalendarNext" aria-label="Next month">&#8250;</button>
+            </div>
+          </div>
+          <div class="expense-calendar" id="expenseCalendar"></div>
+          <div class="calendar-day-details">
+            <h3 id="calendarSelectedDate">Select a date</h3>
+            <p id="calendarDayTotal">No expenses recorded for this day.</p>
+            <ul class="feature-list" id="calendarDayTransactions"></ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===== CHALLENGES PAGE ===== -->
+      <section class="page" id="page-challenges" aria-labelledby="pageTitle">
+        <div class="student-tools-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h2>No-Spend Challenge</h2>
+              <p>Your challenge is a personal tracker. Purchases are never removed or changed.</p>
+            </div>
+            <form id="challengeForm" class="feature-form">
+              <label>Challenge duration
+                <select id="challengeDuration">
+                  <option value="3">3 days</option>
+                  <option value="7">7 days</option>
+                  <option value="15">15 days</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label id="challengeCustomWrap" hidden>Custom days
+                <input id="challengeCustomDays" type="number" min="1" max="365" value="5">
+              </label>
+              <div class="feature-form-actions">
+                <button class="btn btn-primary" type="submit" id="challengeStartButton">Start challenge</button>
+                <button class="btn btn-secondary" type="button" id="challengeRestartButton" hidden>Restart</button>
+                <button class="btn btn-ghost" type="button" id="challengeCancelButton" hidden>Cancel challenge</button>
+                <button class="btn btn-secondary" type="button" id="challengeCompleteButton" hidden>Complete</button>
+              </div>
+            </form>
+            <div id="challengeStatus" class="challenge-status" aria-live="polite"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===== PAYMENTS PAGE ===== -->
+      <section class="page" id="page-payments" aria-labelledby="pageTitle">
+        <div class="student-tools-grid">
+          <article class="panel feature-panel-wide">
+            <div class="panel-head">
+              <h2>Payment Reminders</h2>
+              <p>Track upcoming bills. Completing a reminder does not create a transaction.</p>
+            </div>
+            <form id="paymentReminderForm" class="feature-form">
+              <input type="hidden" id="paymentReminderId">
+              <div class="feature-form-grid">
+                <label>Payment name<input id="paymentReminderName" type="text" maxlength="60" required placeholder="Mobile Recharge"></label>
+                <label>Amount (₹)<input id="paymentReminderAmount" type="number" min="0.01" step="0.01" required></label>
+                <label>Due date<input id="paymentReminderDate" type="date" required></label>
+                <label>Category
+                  <select id="paymentReminderCategory">
+                    <option>Mobile Recharge</option>
+                    <option>Hostel Fee</option>
+                    <option>Internet</option>
+                    <option>Subscription</option>
+                    <option>College Fee</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+                <label class="reminder-recurring"><input id="paymentReminderRecurring" type="checkbox"> Recurring reminder</label>
+                <label id="paymentReminderFrequencyWrap" hidden>Repeat
+                  <select id="paymentReminderFrequency">
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </label>
+              </div>
+              <div class="feature-form-actions">
+                <button class="btn btn-primary" type="submit" id="paymentReminderSubmit">Add reminder</button>
+                <button class="btn btn-ghost" type="button" id="paymentReminderCancel" hidden>Cancel edit</button>
+              </div>
+            </form>
+            <div class="payment-reminder-groups" id="paymentRemindersList"></div>
+          </article>
+        </div>
       </section>
 
       <!-- ===== TRANSACTIONS PAGE ===== -->
       <section class="page" id="page-transactions" aria-labelledby="pageTitle">
+        <article class="panel home-money-card">
+          <div class="panel-head">
+            <h2>Money From Home</h2>
+            <p>Recorded as income transactions so balances and reports stay consistent.</p>
+          </div>
+          <form id="homeMoneyForm" class="feature-form">
+            <div class="feature-form-grid">
+              <label>Amount (₹)<input id="homeMoneyAmount" type="number" min="0.01" step="0.01" required></label>
+              <label>Date<input id="homeMoneyDate" type="date" required></label>
+              <label class="feature-field-wide">Note (optional)<input id="homeMoneyNote" type="text" maxlength="140" placeholder="Monthly money from home"></label>
+            </div>
+            <button class="btn btn-primary" type="submit">Record money received</button>
+          </form>
+          <div class="feature-stat-row">
+            <div><span>Total received</span><strong id="homeMoneyTotal">₹0</strong></div>
+            <div><span>Latest amount</span><strong id="homeMoneyLatest">—</strong></div>
+          </div>
+          <ul class="feature-list" id="homeMoneyHistory"></ul>
+        </article>
         <div class="panel">
           <div class="filters-bar">
             <div class="search-field">
@@ -483,6 +748,15 @@
                   </div>
                   <small id="profilePhoneHelp">Required. Enter a 10-digit Indian mobile number starting with 6–9.</small>
                 </div>
+                <div class="profile-field">
+                  <label for="profileStudentMode">Student Type</label>
+                  <select id="profileStudentMode">
+                    <option value="">Choose a mode</option>
+                    <option value="hostel">Hostel Student</option>
+                    <option value="day-scholar">Day Scholar</option>
+                  </select>
+                  <small>Used to recommend relevant transaction categories.</small>
+                </div>
                 <div class="profile-field profile-field-full">
                   <label for="profileEmail">Email Address</label>
                   <input id="profileEmail" type="email" readonly>
@@ -584,20 +858,6 @@
                 Dark mode
               </button>
             </div>
-          </div>
-
-          <div class="panel settings-card">
-            <div class="panel-head">
-              <h2>Monthly Budget Target</h2>
-              <p>Set a spending ceiling to receive smart alerts</p>
-            </div>
-            <form class="inline-form" id="budgetForm">
-              <label for="budgetInput">Monthly Budget Limit (₹)</label>
-              <div class="inline-form-row">
-                <input type="number" id="budgetInput" min="0" step="1" inputmode="numeric" required placeholder="10000">
-                <button class="btn btn-primary" type="submit">Save Target</button>
-              </div>
-            </form>
           </div>
 
           <div class="panel settings-card">

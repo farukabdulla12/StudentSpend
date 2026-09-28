@@ -113,6 +113,14 @@ async function checkAuthentication() {
     reminderTime: "20:00"
   };
 
+  const DEFAULT_STUDENT_FEATURES = {
+    studentMode: "",
+    categoryBudgets: {},
+    savingsGoals: [],
+    paymentReminders: [],
+    challenge: null
+  };
+
 
   const EXPENSE_CATEGORIES = [
     { name: "Food", color: "#f97316" },
@@ -203,6 +211,10 @@ async function checkAuthentication() {
       ...DEFAULT_SETTINGS
     },
 
+    studentFeatures: {
+      ...DEFAULT_STUDENT_FEATURES
+    },
+
     currentPage: "dashboard",
 
     viewMonth: startOfMonth(new Date()),
@@ -213,7 +225,11 @@ async function checkAuthentication() {
 
     reportPeriod: "monthly",
 
-    trendHoverIndex: null
+    trendHoverIndex: null,
+
+    calendarMonth: startOfMonth(new Date()),
+
+    calendarSelectedDate: todayISO()
 
   };
 
@@ -230,6 +246,100 @@ async function checkAuthentication() {
     return "studentspend_" + state.user.id;
   }
 
+  function normalizeStudentFeatures(value) {
+    const source =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? value
+        : {};
+
+    const categoryBudgets = {};
+    if (
+      source.categoryBudgets &&
+      typeof source.categoryBudgets === "object" &&
+      !Array.isArray(source.categoryBudgets)
+    ) {
+      Object.entries(source.categoryBudgets).forEach(([category, amount]) => {
+        const limit = Number(amount);
+        if (category && Number.isFinite(limit) && limit > 0) {
+          categoryBudgets[category] = Math.round(limit * 100) / 100;
+        }
+      });
+    }
+
+    const savingsGoals = Array.isArray(source.savingsGoals)
+      ? source.savingsGoals
+          .filter((goal) =>
+            goal &&
+            typeof goal.id === "string" &&
+            typeof goal.name === "string" &&
+            Number.isFinite(Number(goal.target)) &&
+            Number(goal.target) > 0
+          )
+          .map((goal) => ({
+            id: goal.id,
+            name: goal.name.slice(0, 60),
+            target: Math.round(Number(goal.target) * 100) / 100,
+            saved: Number.isFinite(Number(goal.saved))
+              ? Math.max(0, Math.round(Number(goal.saved) * 100) / 100)
+              : 0,
+            targetDate: String(goal.targetDate || ""),
+            note: String(goal.note || "").slice(0, 140),
+            createdAt: Number(goal.createdAt) || Date.now()
+          }))
+      : [];
+
+    const paymentReminders = Array.isArray(source.paymentReminders)
+      ? source.paymentReminders
+          .filter((reminder) =>
+            reminder &&
+            typeof reminder.id === "string" &&
+            typeof reminder.name === "string" &&
+            Number.isFinite(Number(reminder.amount)) &&
+            Number(reminder.amount) > 0
+          )
+          .map((reminder) => ({
+            id: reminder.id,
+            name: reminder.name.slice(0, 60),
+            amount: Math.round(Number(reminder.amount) * 100) / 100,
+            dueDate: String(reminder.dueDate || ""),
+            category: String(reminder.category || "Other").slice(0, 60),
+            recurring: reminder.recurring === true,
+            recurrence: ["weekly", "monthly"].includes(reminder.recurrence)
+              ? reminder.recurrence
+              : "monthly",
+            completed: reminder.completed === true
+          }))
+      : [];
+
+    const challenge =
+      source.challenge &&
+      typeof source.challenge === "object" &&
+      Number.isInteger(Number(source.challenge.duration)) &&
+      Number(source.challenge.duration) >= 1 &&
+      Number(source.challenge.duration) <= 365 &&
+      typeof source.challenge.startDate === "string"
+        ? {
+            id: String(source.challenge.id || uid()),
+            duration: Number(source.challenge.duration),
+            startDate: source.challenge.startDate,
+            status: ["active", "completed", "canceled"].includes(source.challenge.status)
+              ? source.challenge.status
+              : "active"
+          }
+        : null;
+
+    return {
+      ...DEFAULT_STUDENT_FEATURES,
+      studentMode: ["hostel", "day-scholar"].includes(source.studentMode)
+        ? source.studentMode
+        : "",
+      categoryBudgets,
+      savingsGoals,
+      paymentReminders,
+      challenge
+    };
+  }
+
 
   const Store = {
 
@@ -243,6 +353,35 @@ async function checkAuthentication() {
 
     alertsKey() {
       return getUserStoragePrefix() + "_budget_alerts";
+    },
+
+    studentFeaturesKey() {
+      return getUserStoragePrefix() + "_student_features";
+    },
+
+    studentFeaturesPendingKey() {
+      return this.studentFeaturesKey() + "_pending_sync";
+    },
+
+    hasPendingStudentFeaturesSync() {
+      try {
+        return localStorage.getItem(this.studentFeaturesPendingKey()) === "true";
+      } catch (error) {
+        console.error("Student tools sync status load error:", error);
+        return false;
+      }
+    },
+
+    setPendingStudentFeaturesSync(isPending) {
+      try {
+        if (isPending) {
+          localStorage.setItem(this.studentFeaturesPendingKey(), "true");
+        } else {
+          localStorage.removeItem(this.studentFeaturesPendingKey());
+        }
+      } catch (error) {
+        console.error("Student tools sync status save error:", error);
+      }
     },
 
     profileKey() {
@@ -375,6 +514,31 @@ async function checkAuthentication() {
           "Settings save error:",
           error
         );
+      }
+    },
+
+    loadStudentFeatures() {
+      try {
+        const raw = localStorage.getItem(this.studentFeaturesKey());
+        const parsed = raw ? JSON.parse(raw) : {};
+        return normalizeStudentFeatures(parsed);
+      } catch (error) {
+        console.error("Student tools loading error:", error);
+        return { ...DEFAULT_STUDENT_FEATURES };
+      }
+    },
+
+    saveStudentFeatures(features) {
+      try {
+        localStorage.setItem(
+          this.studentFeaturesKey(),
+          JSON.stringify(features)
+        );
+        return true;
+      } catch (error) {
+        console.error("Student tools save error:", error);
+        showToast("Could not save student tools on this device.", "error");
+        return false;
       }
     },
 
@@ -616,6 +780,118 @@ async function checkAuthentication() {
       }
     } catch (err) {
       connection.handleError(err);
+    }
+  }
+
+  async function syncStudentFeaturesToSupabase() {
+    if (
+      !supabaseClient ||
+      !connection.isOnline() ||
+      !state.user ||
+      !state.user.id
+    ) {
+      return false;
+    }
+
+    const { error } = await supabaseClient
+      .from("student_features")
+      .upsert(
+        {
+          user_id: state.user.id,
+          payload: state.studentFeatures,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (error) {
+      if (!connection.handleError(error)) {
+        throw error;
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  async function loadStudentFeatures() {
+    state.studentFeatures =
+      Store.loadStudentFeatures();
+
+    if (!connection.isOnline() || !state.user?.id) {
+      return;
+    }
+
+    let data;
+    let error;
+    try {
+      const result = await supabaseClient
+        .from("student_features")
+        .select("payload")
+        .eq("user_id", state.user.id)
+        .maybeSingle();
+      data = result.data;
+      error = result.error;
+    } catch (loadError) {
+      if (!connection.handleError(loadError)) {
+        console.warn("Student tools cloud load failed:", loadError);
+        showToast(
+          "Student tools could not be loaded from Supabase; using this device's saved data.",
+          "warning"
+        );
+      }
+      return;
+    }
+
+    if (error) {
+      if (!connection.handleError(error)) {
+        console.warn("Student tools cloud load failed:", error);
+        showToast(
+          "Student tools are available on this device. Apply the Student Tools Supabase migration to sync them across devices.",
+          "warning"
+        );
+      }
+      return;
+    }
+
+    if (data?.payload) {
+      if (Store.hasPendingStudentFeaturesSync()) {
+        await persistStudentFeatures(false);
+        return;
+      }
+      state.studentFeatures =
+        normalizeStudentFeatures(data.payload);
+      Store.saveStudentFeatures(state.studentFeatures);
+      return;
+    }
+
+    await persistStudentFeatures(false);
+  }
+
+  async function persistStudentFeatures(showSyncError = true) {
+    if (!Store.saveStudentFeatures(state.studentFeatures)) {
+      return false;
+    }
+
+    if (!connection.isOnline()) {
+      Store.setPendingStudentFeaturesSync(true);
+      return true;
+    }
+
+    try {
+      const synced = await syncStudentFeaturesToSupabase();
+      Store.setPendingStudentFeaturesSync(!synced);
+      return synced;
+    } catch (error) {
+      Store.setPendingStudentFeaturesSync(true);
+      console.warn("Student tools cloud save failed:", error);
+      if (showSyncError) {
+        showToast(
+          "Saved on this device, but cloud sync failed. Check your Supabase Student Tools migration and connection.",
+          "warning"
+        );
+      }
+      return false;
     }
   }
 
@@ -1365,6 +1641,8 @@ async function checkAuthentication() {
       age,
       phone
     };
+    const studentMode =
+      document.getElementById("profileStudentMode")?.value || "";
 
     if (saveButton) {
       saveButton.dataset.loading = "true";
@@ -1431,6 +1709,13 @@ async function checkAuthentication() {
         indianMobileInputValue(state.profile.phone);
 
       Store.saveProfile(state.profile);
+      state.studentFeatures.studentMode = studentMode;
+      const studentModeInput =
+        document.getElementById("studentMode");
+      if (studentModeInput) {
+        studentModeInput.value = studentMode;
+      }
+      await persistStudentFeatures();
     } catch (error) {
       if (connection.handleError(error)) {
         return;
@@ -1615,6 +1900,13 @@ async function checkAuthentication() {
 
       phoneInput.value =
         indianMobileInputValue(state.profile.phone);
+    }
+
+    const studentModeInput =
+      document.getElementById("profileStudentMode");
+    if (studentModeInput) {
+      studentModeInput.value =
+        state.studentFeatures.studentMode;
     }
 
 
@@ -2445,6 +2737,31 @@ async function checkAuthentication() {
         "Category breakdowns and monthly spending trends"
     },
 
+    budget: {
+      title: "Budget",
+      desc: "Monthly and category limits, usage, and spending alerts"
+    },
+
+    savings: {
+      title: "Savings Goals",
+      desc: "Track your goals, contributions, and progress"
+    },
+
+    calendar: {
+      title: "Expense Calendar",
+      desc: "Explore daily expenses from your transaction history"
+    },
+
+    challenges: {
+      title: "No-Spend Challenges",
+      desc: "Set a personal spending challenge and track progress"
+    },
+
+    payments: {
+      title: "Payment Reminders",
+      desc: "Organize upcoming, due, overdue, and completed payments"
+    },
+
     settings: {
       title: "Settings & Backups",
       desc:
@@ -2584,6 +2901,7 @@ async function checkAuthentication() {
       "transactions"
     ) {
 
+      renderHomeMoney();
       renderTransactionsPage();
 
     } else if (
@@ -2592,6 +2910,41 @@ async function checkAuthentication() {
     ) {
 
       renderReportsPage();
+
+    } else if (
+      state.currentPage ===
+      "budget"
+    ) {
+
+      renderBudgetPage();
+
+    } else if (
+      state.currentPage ===
+      "savings"
+    ) {
+
+      renderSavingsGoals();
+
+    } else if (
+      state.currentPage ===
+      "calendar"
+    ) {
+
+      renderExpenseCalendar();
+
+    } else if (
+      state.currentPage ===
+      "challenges"
+    ) {
+
+      renderNoSpendChallenge();
+
+    } else if (
+      state.currentPage ===
+      "payments"
+    ) {
+
+      renderPaymentReminders();
 
     } else if (
       state.currentPage ===
@@ -2615,6 +2968,15 @@ async function checkAuthentication() {
   ======================================================= */
 
   function renderDashboard() {
+
+    const greeting =
+      document.getElementById("dashboardGreeting");
+    if (greeting) {
+      greeting.textContent =
+        getProfileFullName()
+          ? `Welcome back, ${getProfileFullName()}`
+          : "Welcome back";
+    }
 
     const monthLabel =
       document.getElementById(
@@ -2725,6 +3087,9 @@ async function checkAuthentication() {
           : `${list.length} transactions this month`;
     }
 
+    renderDailySpendingLimit();
+    renderDashboardHomeMoney();
+    renderDashboardFeatureSummaries();
 
     renderBudgetPanel(
       expense
@@ -2743,6 +3108,181 @@ async function checkAuthentication() {
     renderRecentList();
   }
 
+  function renderDailySpendingLimit() {
+    const today = new Date();
+    const plan = calculateDailySpendingPlan(state.transactions, today);
+
+    const values = {
+      dailyLimitAmount: plan.dailyLimit,
+      dailyLimitBalance: plan.balance,
+      dailyLimitDays: plan.remainingDays,
+      dailyLimitSpent: plan.spentToday,
+      dailyLimitLeft: plan.leftToday
+    };
+
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent =
+          id === "dailyLimitDays"
+            ? String(value)
+            : formatCurrency(value);
+      }
+    });
+    const leftElement =
+      document.getElementById("dailyLimitLeft");
+    if (leftElement) {
+      leftElement.textContent =
+        `${formatCurrency(plan.leftToday)} left today`;
+    }
+    const metaElement =
+      document.getElementById("dailyLimitMeta");
+    if (metaElement) {
+      metaElement.textContent =
+        `${formatCurrency(plan.balance)} remaining balance · ${plan.remainingDays} days · ${formatCurrency(plan.spentToday)} spent today`;
+    }
+  }
+
+  function calculateDailySpendingPlan(transactions, today) {
+    const monthKeyToday = monthKey(today);
+    const monthTransactions = transactions.filter((transaction) =>
+      txMonthKey(transaction) === monthKeyToday);
+    const income = sumByType(monthTransactions, "income");
+    const expense = sumByType(monthTransactions, "expense");
+    const balance = Math.max(0, income - expense);
+    const remainingDays =
+      new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() -
+      today.getDate() + 1;
+    const dailyLimit = remainingDays > 0 ? balance / remainingDays : 0;
+    const todayKey = toISODate(today);
+    const spentToday = transactions
+      .filter((transaction) =>
+        transaction.type === "expense" && transaction.date === todayKey)
+      .reduce((sum, transaction) =>
+        sum + Number(transaction.amount || 0), 0);
+
+    return {
+      balance,
+      remainingDays,
+      dailyLimit,
+      spentToday,
+      leftToday: Math.max(0, dailyLimit - spentToday)
+    };
+  }
+
+  function moneyFromHomeTransactions(list) {
+    return list.filter((transaction) =>
+      transaction.type === "income" &&
+      transaction.category === "Money From Home"
+    );
+  }
+
+  function renderDashboardHomeMoney() {
+    const homeIncome =
+      moneyFromHomeTransactions(state.transactions);
+    const total =
+      homeIncome.reduce((sum, transaction) =>
+        sum + Number(transaction.amount || 0), 0);
+    const latest =
+      [...homeIncome].sort((a, b) =>
+        b.date.localeCompare(a.date) ||
+        Number(b.createdAt || 0) - Number(a.createdAt || 0)
+      )[0];
+    const totalElement =
+      document.getElementById("dashboardHomeMoneyTotal");
+    const latestElement =
+      document.getElementById("dashboardHomeMoneyLatest");
+
+    if (totalElement) {
+      totalElement.textContent = formatCurrency(total);
+    }
+    if (latestElement) {
+      latestElement.textContent = latest
+        ? `Latest: ${formatCurrency(latest.amount)} on ${formatDateDisplay(latest.date)}`
+        : "No money from home recorded yet.";
+    }
+  }
+
+  function renderDashboardFeatureSummaries() {
+    const messages =
+      getSmartBudgetMessages().slice(0, 2);
+    const alertList =
+      document.getElementById("dashboardSmartAlerts");
+    if (alertList) {
+      alertList.innerHTML = messages.map((message) => `
+        <li class="smart-alert smart-alert-${message.type}">
+          <span aria-hidden="true">${message.type === "danger" ? "!" : message.type === "warning" ? "⚠" : "✓"}</span>
+          ${escapeHtml(message.text)}
+        </li>
+      `).join("");
+    }
+
+    const goals = state.studentFeatures.savingsGoals;
+    const savingsSummary =
+      document.getElementById("dashboardSavingsSummary");
+    const savingsProgress =
+      document.getElementById("dashboardSavingsProgress");
+    if (savingsSummary) {
+      savingsSummary.textContent = goals.length
+        ? `${goals.length} goal${goals.length === 1 ? "" : "s"} · ${formatCurrency(goals.reduce((sum, goal) => sum + goal.saved, 0))} saved`
+        : "No savings goals yet.";
+    }
+    if (savingsProgress) {
+      const nextGoal = goals.find((goal) => goal.saved < goal.target);
+      savingsProgress.innerHTML = nextGoal
+        ? `<div class="goal-progress-label"><span>${escapeHtml(nextGoal.name)}</span><span>${Math.round(Math.min(100, nextGoal.saved / nextGoal.target * 100))}%</span></div><div class="goal-progress-track"><span style="width:${Math.min(100, nextGoal.saved / nextGoal.target * 100)}%"></span></div>`
+        : "";
+    }
+
+    const upcoming =
+      state.studentFeatures.paymentReminders
+        .filter((reminder) =>
+          !reminder.completed &&
+          reminder.dueDate >= todayISO()
+        )
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    const paymentSummary =
+      document.getElementById("dashboardPaymentSummary");
+    if (paymentSummary) {
+      paymentSummary.textContent = upcoming
+        ? `${upcoming.name} · ${formatCurrency(upcoming.amount)} · ${formatDateDisplay(upcoming.dueDate)}`
+        : "No upcoming payments.";
+    }
+
+    const challenge = state.studentFeatures.challenge;
+    const challengeSummary =
+      document.getElementById("dashboardChallengeSummary");
+    const challengeProgress =
+      document.getElementById("dashboardChallengeProgress");
+    if (challengeSummary) {
+      if (challenge?.status === "active") {
+        const elapsed = Math.max(
+          0,
+          Math.floor(
+            (new Date(`${todayISO()}T12:00:00`) -
+              new Date(`${challenge.startDate}T12:00:00`)) /
+              86400000
+          ) + 1
+        );
+        const completed = Math.min(challenge.duration, elapsed);
+        challengeSummary.textContent =
+          `${completed} of ${challenge.duration} days completed`;
+        if (challengeProgress) {
+          challengeProgress.style.width =
+            `${Math.min(100, completed / challenge.duration * 100)}%`;
+        }
+      } else {
+        challengeSummary.textContent =
+          challenge?.status === "completed"
+            ? "Challenge completed!"
+            : "No active challenge.";
+        if (challengeProgress) {
+          challengeProgress.style.width =
+            challenge?.status === "completed" ? "100%" : "0%";
+        }
+      }
+    }
+  }
 
   function renderBudgetPanel(
     expense
@@ -2911,6 +3451,452 @@ async function checkAuthentication() {
         );
       }
     }
+  }
+
+  const CATEGORY_BUDGET_NAMES = [
+    "Food",
+    "Transport",
+    "Education",
+    "Entertainment",
+    "Recharge",
+    "Other"
+  ];
+
+  function renderStudentTools() {
+    renderStudentMode();
+    renderHomeMoney(moneyFromHomeTransactions(state.transactions));
+    renderCategoryBudgets();
+    renderSmartBudgetAlerts();
+    renderSavingsGoals();
+    renderExpenseCalendar();
+    renderNoSpendChallenge();
+    renderPaymentReminders();
+  }
+
+  function renderBudgetPage() {
+    const input = document.getElementById("budgetInput");
+    if (input) {
+      input.value = String(state.settings.budget);
+    }
+    renderCategoryBudgets();
+    renderSmartBudgetAlerts();
+    renderCategoryBudgetProgress();
+
+    const expenses = sumByType(txForMonth(new Date()), "expense");
+    const budget = Number(state.settings.budget) || 0;
+    const percent = budget > 0 ? expenses / budget * 100 : 0;
+    const spentElement =
+      document.getElementById("categoryBudgetMonthlySpent");
+    const limitElement =
+      document.getElementById("categoryBudgetMonthlyLimit");
+    const progressElement =
+      document.getElementById("categoryBudgetProgress");
+    const summaryElement =
+      document.getElementById("categoryBudgetMonthlySummary");
+    if (spentElement) spentElement.textContent = formatCurrency(expenses);
+    if (limitElement) limitElement.textContent = formatCurrency(budget);
+    if (progressElement) {
+      progressElement.style.width = `${Math.min(100, percent)}%`;
+      progressElement.classList.toggle("is-warning", percent >= 80 && percent < 100);
+      progressElement.classList.toggle("is-danger", percent >= 100);
+    }
+    if (summaryElement) {
+      summaryElement.textContent = budget > 0
+        ? `${Math.round(percent)}% used · ${formatCurrency(Math.max(0, budget - expenses))} remaining`
+        : "Set a monthly target to track your total spending.";
+    }
+  }
+
+  function renderCategoryBudgetProgress() {
+    const container =
+      document.getElementById("categoryBudgetProgressList");
+    if (!container) return;
+    const totals =
+      categoryTotals(txForMonth(new Date()), "expense");
+    const budgets =
+      state.studentFeatures.categoryBudgets;
+    container.innerHTML = Object.entries(budgets).length
+      ? Object.entries(budgets).map(([category, limit]) => {
+          const spent = totals[category] || 0;
+          const percent = limit > 0 ? spent / limit * 100 : 0;
+          return `
+            <div class="category-budget-progress">
+              <div class="category-budget-progress-heading">
+                <strong>${escapeHtml(category)}</strong>
+                <span>${formatCurrency(spent)} / ${formatCurrency(limit)} · ${Math.round(percent)}%</span>
+              </div>
+              <div class="goal-progress-track"><span class="${percent >= 100 ? "is-danger" : percent >= 80 ? "is-warning" : ""}" style="width:${Math.min(100, percent)}%"></span></div>
+            </div>
+          `;
+        }).join("")
+      : '<p class="feature-empty">No category budgets set yet.</p>';
+  }
+
+  function renderStudentMode() {
+    const select = document.getElementById("studentMode");
+    const recommendations =
+      document.getElementById("studentModeRecommendations");
+    if (select) {
+      select.value = state.studentFeatures.studentMode;
+    }
+    const profileSelect =
+      document.getElementById("profileStudentMode");
+    if (profileSelect) {
+      profileSelect.value = state.studentFeatures.studentMode;
+    }
+    if (!recommendations) return;
+
+    const categories =
+      state.studentFeatures.studentMode === "hostel"
+        ? ["Mess/Food", "Snacks", "Hostel", "Transport", "Recharge", "College", "Entertainment", "Money From Home"]
+        : state.studentFeatures.studentMode === "day-scholar"
+          ? ["Bus/Fuel", "Food", "College", "Recharge", "Entertainment", "Study Materials", "Other"]
+          : [];
+    recommendations.textContent = categories.length
+      ? `Recommended categories: ${categories.join(" · ")}. All existing categories remain available when recording transactions.`
+      : "Choose Hostel Student or Day Scholar to see category recommendations.";
+  }
+
+  function renderHomeMoney(transactions = moneyFromHomeTransactions(state.transactions)) {
+    const latest = [...transactions].sort((a, b) =>
+      b.date.localeCompare(a.date) ||
+      Number(b.createdAt || 0) - Number(a.createdAt || 0)
+    )[0];
+    const total = transactions.reduce((sum, transaction) =>
+      sum + Number(transaction.amount || 0), 0);
+    const totalElement = document.getElementById("homeMoneyTotal");
+    const latestElement = document.getElementById("homeMoneyLatest");
+    const history = document.getElementById("homeMoneyHistory");
+    const dateInput = document.getElementById("homeMoneyDate");
+    if (totalElement) {
+      totalElement.textContent = formatCurrency(total);
+    }
+    if (latestElement) {
+      latestElement.textContent = latest
+        ? `${formatCurrency(latest.amount)} · ${formatDateDisplay(latest.date)}`
+        : "No money received yet";
+    }
+    if (dateInput && !dateInput.value) {
+      dateInput.value = todayISO();
+    }
+    if (!history) return;
+
+    history.innerHTML = transactions.length
+      ? [...transactions]
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .map((transaction) => `
+            <li class="feature-list-row">
+              <div>
+                <strong>${formatCurrency(transaction.amount)}</strong>
+                <span>${escapeHtml(formatDateDisplay(transaction.date))} · ${escapeHtml(transaction.note || transaction.title)}</span>
+              </div>
+              <div class="feature-row-actions">
+                <button class="link-btn-subtle" type="button" data-feature-action="edit-home" data-id="${escapeHtml(transaction.id)}">Edit</button>
+                <button class="link-btn-subtle feature-delete" type="button" data-feature-action="delete-home" data-id="${escapeHtml(transaction.id)}">Delete</button>
+              </div>
+            </li>
+          `).join("")
+      : '<li class="feature-empty">No money from home recorded yet.</li>';
+  }
+
+  function renderCategoryBudgets() {
+    const container = document.getElementById("categoryBudgetInputs");
+    if (!container) return;
+    container.innerHTML = CATEGORY_BUDGET_NAMES.map((category) => `
+      <label>${escapeHtml(category)} (₹/month)
+        <input type="number" min="0" step="0.01" inputmode="decimal" data-category-budget="${escapeHtml(category)}" value="${state.studentFeatures.categoryBudgets[category] || ""}" placeholder="No limit">
+      </label>
+    `).join("");
+  }
+
+  function getSmartBudgetMessages() {
+    const messages = [];
+    const monthTransactions = txForMonth(new Date());
+    const monthExpense = sumByType(monthTransactions, "expense");
+    const monthlyBudget = Number(state.settings.budget) || 0;
+    if (monthlyBudget > 0) {
+      const used = monthExpense / monthlyBudget;
+      if (used >= 1) {
+        messages.push({ type: "danger", text: `You have used ${Math.round(used * 100)}% of your monthly budget.` });
+      } else if (used >= 0.8) {
+        messages.push({ type: "warning", text: `You have used ${Math.round(used * 100)}% of your monthly budget.` });
+      }
+    }
+
+    const categoryTotals = {};
+    monthTransactions
+      .filter((transaction) => transaction.type === "expense")
+      .forEach((transaction) => {
+        const category = transaction.category || "Other";
+        categoryTotals[category] =
+          (categoryTotals[category] || 0) + Number(transaction.amount || 0);
+      });
+    Object.entries(state.studentFeatures.categoryBudgets).forEach(([category, limit]) => {
+      const spent = categoryTotals[category] || 0;
+      if (limit > 0 && spent / limit >= 0.8) {
+        messages.push({
+          type: spent >= limit ? "danger" : "warning",
+          text: `You are close to your ${category} budget (${Math.round(spent / limit * 100)}% used).`
+        });
+      }
+    });
+
+    const today = todayISO();
+    const todaySpent = state.transactions
+      .filter((transaction) => transaction.type === "expense" && transaction.date === today)
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    const priorSevenDays = [];
+    for (let offset = 1; offset <= 7; offset += 1) {
+      const date = new Date();
+      date.setDate(date.getDate() - offset);
+      priorSevenDays.push(toISODate(date));
+    }
+    const sevenDayAverage = priorSevenDays.reduce((sum, date) =>
+      sum + state.transactions
+        .filter((transaction) => transaction.type === "expense" && transaction.date === date)
+        .reduce((daySum, transaction) =>
+          daySum + Number(transaction.amount || 0), 0), 0) / 7;
+    if (todaySpent > 0 && sevenDayAverage > 0 && todaySpent > sevenDayAverage * 1.25) {
+      messages.push({
+        type: "warning",
+        text: `Today's spending is higher than your recent daily average (${formatCurrency(sevenDayAverage)}).`
+      });
+    }
+    if (messages.length === 0) {
+      const hasConfiguredBudget =
+        monthlyBudget > 0 ||
+        Object.keys(state.studentFeatures.categoryBudgets).length > 0;
+      messages.push({
+        type: "good",
+        text: hasConfiguredBudget
+          ? "You are within your budget."
+          : "Set a monthly or category budget to receive spending alerts."
+      });
+    }
+    return messages;
+  }
+
+  function renderSmartBudgetAlerts() {
+    const list = document.getElementById("smartBudgetAlerts");
+    if (!list) return;
+    list.innerHTML = getSmartBudgetMessages()
+      .map((message) => `
+        <li class="smart-alert smart-alert-${message.type}">
+          <span aria-hidden="true">${message.type === "danger" ? "!" : message.type === "warning" ? "⚠" : "✓"}</span>
+          ${escapeHtml(message.text)}
+        </li>
+      `).join("");
+  }
+
+  function renderSavingsGoals() {
+    const list = document.getElementById("savingsGoalsList");
+    if (!list) return;
+    const goals = state.studentFeatures.savingsGoals;
+    list.innerHTML = goals.length
+      ? goals.map((goal) => {
+          const percent = Math.min(100, goal.saved / goal.target * 100);
+          const remaining = Math.max(0, goal.target - goal.saved);
+          const nowDay = Math.floor(Date.now() / 86400000);
+          const createdDay = Math.floor(goal.createdAt / 86400000);
+          const endDay = goal.targetDate
+            ? Math.floor(new Date(`${goal.targetDate}T12:00:00`).getTime() / 86400000)
+            : 0;
+          const expected = endDay > createdDay
+            ? Math.min(100, Math.max(0, (nowDay - createdDay) / (endDay - createdDay) * 100))
+            : 100;
+          const status = goal.saved >= goal.target
+            ? "Goal reached"
+            : Date.now() > new Date(`${goal.targetDate}T23:59:59`).getTime()
+              ? "Target date passed"
+              : percent >= expected
+                ? "On track"
+                : "Needs attention";
+          return `
+            <article class="goal-card">
+              <div class="feature-list-row">
+                <div>
+                  <h3>${escapeHtml(goal.name)}</h3>
+                  <span>${escapeHtml(status)} · Target ${escapeHtml(formatDateDisplay(goal.targetDate))}</span>
+                </div>
+                <div class="feature-row-actions">
+                  <button class="link-btn-subtle" type="button" data-feature-action="edit-goal" data-id="${escapeHtml(goal.id)}">Edit</button>
+                  <button class="link-btn-subtle feature-delete" type="button" data-feature-action="delete-goal" data-id="${escapeHtml(goal.id)}">Delete</button>
+                </div>
+              </div>
+              <div class="goal-progress-label"><span>${formatCurrency(goal.saved)} saved</span><span>${Math.round(percent)}%</span></div>
+              <div class="goal-progress-track"><span style="width:${percent}%"></span></div>
+              <p>${formatCurrency(remaining)} remaining${goal.note ? ` · ${escapeHtml(goal.note)}` : ""}</p>
+              <form class="goal-contribution-form" data-goal-contribute="${escapeHtml(goal.id)}">
+                <label>Add savings (₹)<input type="number" min="0.01" step="0.01" required></label>
+                <button class="btn btn-secondary btn-sm" type="submit">Add to goal</button>
+              </form>
+            </article>
+          `;
+        }).join("")
+      : '<div class="feature-empty">No savings goals yet.</div>';
+  }
+
+  function renderExpenseCalendar() {
+    const grid = document.getElementById("expenseCalendar");
+    if (!grid) return;
+    const monthLabel = document.getElementById("expenseCalendarMonth");
+    if (monthLabel) {
+      monthLabel.textContent = formatMonthLabel(state.calendarMonth);
+    }
+    const year = state.calendarMonth.getFullYear();
+    const month = state.calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const dayCount = new Date(year, month + 1, 0).getDate();
+    const monthTotalElement =
+      document.getElementById("expenseCalendarMonthTotal");
+    if (monthTotalElement) {
+      const monthExpense = sumByType(txForMonth(state.calendarMonth), "expense");
+      monthTotalElement.textContent =
+        `${formatCurrency(monthExpense)} total expenses this month · Daily totals from your transactions.`;
+    }
+    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let cells = weekdays.map((day) =>
+      `<span class="calendar-weekday">${day}</span>`).join("");
+    for (let blank = 0; blank < firstDay; blank += 1) {
+      cells += '<span class="calendar-day calendar-day-empty" aria-hidden="true"></span>';
+    }
+    for (let day = 1; day <= dayCount; day += 1) {
+      const date = toISODate(new Date(year, month, day));
+      const amount = state.transactions
+        .filter((transaction) =>
+          transaction.type === "expense" && transaction.date === date)
+        .reduce((sum, transaction) =>
+          sum + Number(transaction.amount || 0), 0);
+      cells += `
+        <button type="button" class="calendar-day${amount > 0 ? " has-spending" : ""}${date === state.calendarSelectedDate ? " is-selected" : ""}" data-calendar-date="${date}" aria-label="${escapeHtml(formatDateDisplay(date))}, ${formatCurrency(amount)} spent">
+          <span>${day}</span><small>${amount > 0 ? escapeHtml(formatCurrency(amount)) : "—"}</small>
+        </button>
+      `;
+    }
+    grid.innerHTML = cells;
+
+    const selected = state.calendarSelectedDate;
+    const selectedDate = document.getElementById("calendarSelectedDate");
+    const total = document.getElementById("calendarDayTotal");
+    const transactionsList = document.getElementById("calendarDayTransactions");
+    const dayTransactions = state.transactions.filter((transaction) =>
+      transaction.date === selected);
+    const dayExpenses = dayTransactions.filter((transaction) =>
+      transaction.type === "expense");
+    const dayTotal = dayExpenses.reduce((sum, transaction) =>
+      sum + Number(transaction.amount || 0), 0);
+    if (selectedDate) {
+      selectedDate.textContent = selected ? formatDateDisplay(selected) : "Select a date";
+    }
+    if (total) {
+      total.textContent = dayExpenses.length
+        ? `${formatCurrency(dayTotal)} spent`
+        : "No expenses recorded for this day.";
+    }
+    if (transactionsList) {
+      transactionsList.innerHTML = dayTransactions.length
+        ? dayTransactions.map((transaction) => `
+            <li class="feature-list-row">
+              <div><strong>${transaction.type === "income" ? "+" : "−"}${formatCurrency(transaction.amount)} · ${escapeHtml(transaction.title)}</strong><span>${escapeHtml(transaction.category)} · ${escapeHtml(formatDateDisplay(transaction.date))}</span></div>
+              <button class="link-btn-subtle" type="button" data-feature-action="edit-calendar-transaction" data-id="${escapeHtml(transaction.id)}">Edit</button>
+            </li>
+          `).join("")
+        : "";
+    }
+  }
+
+  function renderNoSpendChallenge() {
+    const status = document.getElementById("challengeStatus");
+    const form = document.getElementById("challengeForm");
+    if (!status || !form) return;
+    const challenge = state.studentFeatures.challenge;
+    const startButton = document.getElementById("challengeStartButton");
+    const cancelButton = document.getElementById("challengeCancelButton");
+    const completeButton = document.getElementById("challengeCompleteButton");
+    const restartButton = document.getElementById("challengeRestartButton");
+    const duration = document.getElementById("challengeDuration");
+    const customWrap = document.getElementById("challengeCustomWrap");
+    const active = challenge?.status === "active";
+    if (startButton) startButton.hidden = Boolean(active);
+    if (cancelButton) cancelButton.hidden = !active;
+    if (completeButton) completeButton.hidden = !active;
+    if (restartButton) restartButton.hidden = !challenge || active;
+    if (duration) duration.disabled = Boolean(active);
+    if (customWrap && duration) customWrap.hidden = duration.value !== "custom";
+    if (!challenge) {
+      status.innerHTML = '<p class="feature-empty">No active challenge.</p>';
+      return;
+    }
+
+    const start = new Date(`${challenge.startDate}T12:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + challenge.duration - 1);
+    const today = new Date(`${todayISO()}T12:00:00`);
+    const elapsed = Math.max(0, Math.floor((today - start) / 86400000) + 1);
+    const completed = Math.min(challenge.duration, elapsed);
+    const remaining = Math.max(0, challenge.duration - completed);
+    if (active && today > end) {
+      challenge.status = "completed";
+      persistStudentFeatures();
+    }
+    const progress = challenge.status === "completed"
+      ? 100
+      : Math.min(100, completed / challenge.duration * 100);
+    const statusText = challenge.status === "active"
+      ? `${completed} days completed · ${remaining} days remaining`
+      : challenge.status === "completed"
+        ? "Challenge completed!"
+        : "Challenge canceled.";
+    status.innerHTML = `
+      <p><strong>${escapeHtml(statusText)}</strong></p>
+      <p>Started ${escapeHtml(formatDateDisplay(challenge.startDate))} · Ends ${escapeHtml(formatDateDisplay(toISODate(end)))}</p>
+      <div class="goal-progress-track"><span style="width:${progress}%"></span></div>
+      <small>${Math.round(progress)}% complete. Avoided spending is not estimated because no reliable baseline is available.</small>
+    `;
+  }
+
+  function paymentReminderStatus(reminder) {
+    if (reminder.completed) return "completed";
+    const today = todayISO();
+    if (reminder.dueDate < today) return "overdue";
+    if (reminder.dueDate === today) return "due";
+    return "upcoming";
+  }
+
+  function renderPaymentReminders() {
+    const container = document.getElementById("paymentRemindersList");
+    if (!container) return;
+    const groups = [
+      ["due", "Due today"],
+      ["overdue", "Overdue"],
+      ["upcoming", "Upcoming"],
+      ["completed", "Completed"]
+    ];
+    container.innerHTML = groups.map(([status, title]) => {
+      const reminders = state.studentFeatures.paymentReminders
+        .filter((reminder) => paymentReminderStatus(reminder) === status)
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      return `
+        <section class="reminder-group">
+          <h3>${title}</h3>
+          ${reminders.length
+            ? reminders.map((reminder) => `
+                <div class="feature-list-row payment-reminder-row">
+                  <div>
+                    <strong>${escapeHtml(reminder.name)} <span class="reminder-status status-${status}">${status === "due" ? "Due today" : status}</span></strong>
+                    <span>${escapeHtml(reminder.category)} · ${formatCurrency(reminder.amount)} · ${escapeHtml(formatDateDisplay(reminder.dueDate))}${reminder.recurring ? ` · Repeats ${escapeHtml(reminder.recurrence)}` : ""}</span>
+                  </div>
+                  <div class="feature-row-actions">
+                    ${!reminder.completed ? `<button class="link-btn-subtle" type="button" data-feature-action="complete-reminder" data-id="${escapeHtml(reminder.id)}">Complete</button>` : ""}
+                    <button class="link-btn-subtle" type="button" data-feature-action="edit-reminder" data-id="${escapeHtml(reminder.id)}">Edit</button>
+                    <button class="link-btn-subtle feature-delete" type="button" data-feature-action="delete-reminder" data-id="${escapeHtml(reminder.id)}">Delete</button>
+                  </div>
+                </div>
+              `).join("")
+            : '<p class="feature-empty">No payments in this group.</p>'}
+        </section>
+      `;
+    }).join("");
   }
 
 
@@ -4471,6 +5457,33 @@ async function checkAuthentication() {
   function confirmDeleteTransaction(
     id
   ) {
+    const transactionToDelete =
+      state.transactions.find((transaction) => transaction.id === id);
+
+    if (transactionToDelete?.type === "income") {
+      const monthTransactions =
+        state.transactions.filter((transaction) =>
+          txMonthKey(transaction) === txMonthKey(transactionToDelete) &&
+          transaction.id !== id);
+      const incomeCents =
+        monthTransactions
+          .filter((transaction) => transaction.type === "income")
+          .reduce((sum, transaction) =>
+            sum + Math.round(Number(transaction.amount || 0) * 100), 0);
+      const expenseCents =
+        monthTransactions
+          .filter((transaction) => transaction.type === "expense")
+          .reduce((sum, transaction) =>
+            sum + Math.round(Number(transaction.amount || 0) * 100), 0);
+
+      if (expenseCents > incomeCents) {
+        showToast(
+          "This income is needed to cover expenses already recorded for the month. Reduce or remove those expenses before deleting it.",
+          "warning"
+        );
+        return;
+      }
+    }
 
     openConfirm(
       "Are you sure you want to delete this transaction?",
@@ -4526,10 +5539,28 @@ async function checkAuthentication() {
     if (!select) return;
 
 
-    const categories =
+    const existingCategories =
       type === "income"
         ? INCOME_CATEGORIES
         : EXPENSE_CATEGORIES;
+    const recommendedNames =
+      type === "expense"
+        ? state.studentFeatures.studentMode === "hostel"
+          ? ["Mess/Food", "Snacks", "Hostel", "Transport", "Recharge", "College", "Entertainment"]
+          : state.studentFeatures.studentMode === "day-scholar"
+            ? ["Bus/Fuel", "Food", "College", "Recharge", "Entertainment", "Study Materials", "Other"]
+            : []
+        : ["Money From Home"];
+    const recommendedCategories = recommendedNames.map((name) => ({
+      name,
+      color: categoryMeta(name).color
+    }));
+    const categories = [
+      ...recommendedCategories,
+      ...existingCategories.filter((category) =>
+        !recommendedNames.includes(category.name)
+      )
+    ];
 
 
     let options =
@@ -4971,6 +6002,41 @@ async function checkAuthentication() {
       }
     }
 
+    if (state.editingId) {
+      const existingTransaction =
+        state.transactions.find((transaction) =>
+          transaction.id === state.editingId);
+      if (existingTransaction?.type === "income") {
+        const oldMonth =
+          txMonthKey(existingTransaction);
+        const adjustedMonthTransactions =
+          state.transactions.filter((transaction) =>
+            txMonthKey(transaction) === oldMonth &&
+            transaction.id !== state.editingId);
+        const adjustedIncome =
+          adjustedMonthTransactions
+            .filter((transaction) => transaction.type === "income")
+            .reduce((sum, transaction) =>
+              sum + Math.round(Number(transaction.amount || 0) * 100), 0) +
+          (type === "income" && date.slice(0, 7) === oldMonth
+            ? Math.round(roundedAmount * 100)
+            : 0);
+        const existingExpenses =
+          adjustedMonthTransactions
+            .filter((transaction) => transaction.type === "expense")
+            .reduce((sum, transaction) =>
+              sum + Math.round(Number(transaction.amount || 0) * 100), 0);
+
+        if (existingExpenses > adjustedIncome) {
+          showToast(
+            "This change would leave monthly expenses higher than money received. Keep the income or reduce/remove expenses first.",
+            "warning"
+          );
+          return;
+        }
+      }
+    }
+
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.dataset.loading = "true";
@@ -5014,9 +6080,11 @@ async function checkAuthentication() {
         }
 
 
+        const challengeWarning =
+          getNoSpendPurchaseWarning(type, category, date);
         showToast(
-          "Transaction updated successfully.",
-          "success"
+          challengeWarning || "Transaction updated successfully.",
+          challengeWarning ? "warning" : "success"
         );
 
       } else {
@@ -5045,11 +6113,14 @@ async function checkAuthentication() {
         });
 
 
+        const challengeWarning =
+          getNoSpendPurchaseWarning(type, category, date);
         showToast(
-          type === "income"
-            ? "Money received recorded!"
-            : "Expense logged!",
-          "success"
+          challengeWarning ||
+            (type === "income"
+              ? "Money received recorded!"
+              : "Expense logged!"),
+          challengeWarning ? "warning" : "success"
         );
       }
 
@@ -6220,6 +7291,9 @@ async function checkAuthentication() {
       settings:
         state.settings,
 
+      studentFeatures:
+        state.studentFeatures,
+
       profile:
         state.profile
     };
@@ -6402,6 +7476,15 @@ async function checkAuthentication() {
             };
           }
 
+          if (
+            data.studentFeatures &&
+            typeof data.studentFeatures === "object"
+          ) {
+            state.studentFeatures =
+              normalizeStudentFeatures(data.studentFeatures);
+            persistStudentFeatures();
+          }
+
 
           if (
             data.profile &&
@@ -6527,12 +7610,413 @@ async function checkAuthentication() {
     );
   }
 
+  function handleHomeMoneySubmit(event) {
+    event.preventDefault();
+    const amount = Number(document.getElementById("homeMoneyAmount").value);
+    const date = document.getElementById("homeMoneyDate").value;
+    const note = document.getElementById("homeMoneyNote").value.trim();
+    if (!Number.isFinite(amount) || amount <= 0 || !date) {
+      showToast("Enter a valid amount and date for money received.", "error");
+      return;
+    }
+
+    state.transactions.push({
+      id: uid(),
+      type: "income",
+      amount: Math.round(amount * 100) / 100,
+      title: "Money From Home",
+      category: "Money From Home",
+      date,
+      paymentMethod: "Other",
+      note,
+      createdAt: Date.now()
+    });
+    Store.saveTransactions(state.transactions);
+    document.getElementById("homeMoneyForm").reset();
+    document.getElementById("homeMoneyDate").value = todayISO();
+    renderCurrentPage();
+    showToast("Money from home recorded as income.", "success");
+  }
+
+  function handleSavingsGoalSubmit(event) {
+    event.preventDefault();
+    const id = document.getElementById("savingsGoalId").value;
+    const name = document.getElementById("savingsGoalName").value.trim();
+    const target = Number(document.getElementById("savingsGoalTarget").value);
+    const saved = Number(document.getElementById("savingsGoalSaved").value);
+    const targetDate = document.getElementById("savingsGoalDate").value;
+    const note = document.getElementById("savingsGoalNote").value.trim();
+    if (!name || !Number.isFinite(target) || target <= 0 ||
+        !Number.isFinite(saved) || saved < 0 || !targetDate) {
+      showToast("Enter a goal name, valid target and saved amounts, and target date.", "error");
+      return;
+    }
+
+    const current = state.studentFeatures.savingsGoals.find((goal) => goal.id === id);
+    const goal = {
+      id: id || uid(),
+      name,
+      target: Math.round(target * 100) / 100,
+      saved: Math.round(saved * 100) / 100,
+      targetDate,
+      note,
+      createdAt: current?.createdAt || Date.now()
+    };
+    state.studentFeatures.savingsGoals = id
+      ? state.studentFeatures.savingsGoals.map((item) => item.id === id ? goal : item)
+      : [...state.studentFeatures.savingsGoals, goal];
+    resetSavingsGoalForm();
+    persistStudentFeatures();
+    renderStudentTools();
+    showToast(id ? "Savings goal updated." : "Savings goal created.", "success");
+  }
+
+  function resetSavingsGoalForm() {
+    document.getElementById("savingsGoalForm")?.reset();
+    document.getElementById("savingsGoalId").value = "";
+    document.getElementById("savingsGoalSaved").value = "0";
+    document.getElementById("savingsGoalSubmit").textContent = "Add goal";
+    document.getElementById("savingsGoalCancel").hidden = true;
+  }
+
+  function handleGoalListClick(event) {
+    const button = event.target.closest("[data-feature-action]");
+    if (!button) return;
+    const { featureAction, id } = button.dataset;
+
+    if (featureAction === "edit-home") {
+      openModalForEdit(id);
+      return;
+    }
+    if (featureAction === "delete-home") {
+      confirmDeleteTransaction(id);
+      return;
+    }
+    if (featureAction === "edit-calendar-transaction") {
+      openModalForEdit(id);
+      return;
+    }
+    if (featureAction === "edit-goal") {
+      const goal = state.studentFeatures.savingsGoals.find((item) => item.id === id);
+      if (!goal) return;
+      document.getElementById("savingsGoalId").value = goal.id;
+      document.getElementById("savingsGoalName").value = goal.name;
+      document.getElementById("savingsGoalTarget").value = String(goal.target);
+      document.getElementById("savingsGoalSaved").value = String(goal.saved);
+      document.getElementById("savingsGoalDate").value = goal.targetDate;
+      document.getElementById("savingsGoalNote").value = goal.note;
+      document.getElementById("savingsGoalSubmit").textContent = "Save changes";
+      document.getElementById("savingsGoalCancel").hidden = false;
+      document.getElementById("savingsGoalName").focus();
+      return;
+    }
+    if (featureAction === "delete-goal") {
+      openConfirm("Delete this savings goal?", () => {
+        state.studentFeatures.savingsGoals =
+          state.studentFeatures.savingsGoals.filter((goal) => goal.id !== id);
+        persistStudentFeatures();
+        renderStudentTools();
+        showToast("Savings goal deleted.", "success");
+        closeConfirm();
+      });
+      return;
+    }
+    if (featureAction === "edit-reminder") {
+      const reminder = state.studentFeatures.paymentReminders.find((item) => item.id === id);
+      if (!reminder) return;
+      document.getElementById("paymentReminderId").value = reminder.id;
+      document.getElementById("paymentReminderName").value = reminder.name;
+      document.getElementById("paymentReminderAmount").value = String(reminder.amount);
+      document.getElementById("paymentReminderDate").value = reminder.dueDate;
+      document.getElementById("paymentReminderCategory").value = reminder.category;
+      document.getElementById("paymentReminderRecurring").checked = reminder.recurring;
+      document.getElementById("paymentReminderFrequency").value = reminder.recurrence || "monthly";
+      document.getElementById("paymentReminderFrequencyWrap").hidden = !reminder.recurring;
+      document.getElementById("paymentReminderSubmit").textContent = "Save changes";
+      document.getElementById("paymentReminderCancel").hidden = false;
+      document.getElementById("paymentReminderName").focus();
+      return;
+    }
+    if (featureAction === "complete-reminder") {
+      const completedReminder =
+        state.studentFeatures.paymentReminders.find((reminder) => reminder.id === id);
+      state.studentFeatures.paymentReminders =
+        state.studentFeatures.paymentReminders.map((reminder) =>
+          reminder.id === id ? { ...reminder, completed: true } : reminder);
+      if (completedReminder?.recurring) {
+        const recurrenceBase =
+          completedReminder.dueDate > todayISO()
+            ? completedReminder.dueDate
+            : todayISO();
+        state.studentFeatures.paymentReminders.push({
+          ...completedReminder,
+          id: uid(),
+          dueDate: nextReminderDate(
+            recurrenceBase,
+            completedReminder.recurrence
+          ),
+          completed: false
+        });
+      }
+      persistStudentFeatures();
+      renderStudentTools();
+      showToast(
+        completedReminder?.recurring
+          ? "Payment marked complete; the next reminder is scheduled. No transaction was created."
+          : "Payment marked complete. No transaction was created.",
+        "success"
+      );
+      return;
+    }
+    if (featureAction === "delete-reminder") {
+      openConfirm("Delete this payment reminder?", () => {
+        state.studentFeatures.paymentReminders =
+          state.studentFeatures.paymentReminders.filter((reminder) => reminder.id !== id);
+        persistStudentFeatures();
+        renderStudentTools();
+        showToast("Payment reminder deleted.", "success");
+        closeConfirm();
+      });
+    }
+  }
+
+  function handleGoalContribution(event) {
+    const form = event.target.closest("[data-goal-contribute]");
+    if (!form) return;
+    event.preventDefault();
+    const amount = Number(form.querySelector("input").value);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showToast("Enter a contribution greater than ₹0.", "error");
+      return;
+    }
+    const id = form.dataset.goalContribute;
+    state.studentFeatures.savingsGoals =
+      state.studentFeatures.savingsGoals.map((goal) =>
+        goal.id === id
+          ? { ...goal, saved: Math.round((goal.saved + amount) * 100) / 100 }
+          : goal);
+    persistStudentFeatures();
+    renderStudentTools();
+    showToast("Savings goal updated. Your available balance was not changed.", "success");
+  }
+
+  function handlePaymentReminderSubmit(event) {
+    event.preventDefault();
+    const id = document.getElementById("paymentReminderId").value;
+    const name = document.getElementById("paymentReminderName").value.trim();
+    const amount = Number(document.getElementById("paymentReminderAmount").value);
+    const dueDate = document.getElementById("paymentReminderDate").value;
+    if (!name || !Number.isFinite(amount) || amount <= 0 || !dueDate) {
+      showToast("Enter a payment name, valid amount, and due date.", "error");
+      return;
+    }
+    const existing = state.studentFeatures.paymentReminders.find((item) => item.id === id);
+    const reminder = {
+      id: id || uid(),
+      name,
+      amount: Math.round(amount * 100) / 100,
+      dueDate,
+      category: document.getElementById("paymentReminderCategory").value,
+      recurring: document.getElementById("paymentReminderRecurring").checked,
+      recurrence: document.getElementById("paymentReminderFrequency").value,
+      completed: existing?.completed || false
+    };
+    state.studentFeatures.paymentReminders = id
+      ? state.studentFeatures.paymentReminders.map((item) => item.id === id ? reminder : item)
+      : [...state.studentFeatures.paymentReminders, reminder];
+    resetPaymentReminderForm();
+    persistStudentFeatures();
+    renderStudentTools();
+    showToast(id ? "Payment reminder updated." : "Payment reminder added.", "success");
+  }
+
+  function resetPaymentReminderForm() {
+    document.getElementById("paymentReminderForm")?.reset();
+    document.getElementById("paymentReminderId").value = "";
+    document.getElementById("paymentReminderSubmit").textContent = "Add reminder";
+    document.getElementById("paymentReminderCancel").hidden = true;
+    document.getElementById("paymentReminderFrequencyWrap").hidden = true;
+  }
+
+  function nextReminderDate(dueDate, recurrence) {
+    const [year, month, day] = dueDate.split("-").map(Number);
+    if (recurrence === "weekly") {
+      return toISODate(new Date(year, month - 1, day + 7));
+    }
+    const nextMonth = new Date(year, month, 1);
+    const lastDay = new Date(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth() + 1,
+      0
+    ).getDate();
+    return toISODate(
+      new Date(nextMonth.getFullYear(), nextMonth.getMonth(), Math.min(day, lastDay))
+    );
+  }
+
+  function startNoSpendChallenge(duration) {
+    state.studentFeatures.challenge = {
+      id: uid(),
+      duration,
+      startDate: todayISO(),
+      status: "active"
+    };
+    persistStudentFeatures();
+    renderStudentTools();
+    showToast(`${duration}-day no-spend challenge started.`, "success");
+  }
+
+  function getNoSpendPurchaseWarning(type, category, date) {
+    const challenge = state.studentFeatures.challenge;
+    let endDate = "";
+    if (challenge) {
+      const startDate = new Date(`${challenge.startDate}T12:00:00`);
+      startDate.setDate(startDate.getDate() + challenge.duration - 1);
+      endDate = toISODate(startDate);
+    }
+    const essentialCategories = new Set([
+      "food", "mess/food", "snacks", "transport", "bus/fuel", "education",
+      "study materials", "college", "hostel", "health", "recharge"
+    ]);
+
+    if (
+      type === "expense" &&
+      challenge?.status === "active" &&
+      date >= challenge.startDate &&
+      date <= endDate &&
+      !essentialCategories.has(String(category).toLowerCase())
+    ) {
+      return "You made a purchase today. Your challenge can still continue.";
+    }
+    return "";
+  }
+
+  function wireStudentToolEvents() {
+    document.getElementById("homeMoneyForm")
+      ?.addEventListener("submit", handleHomeMoneySubmit);
+
+    document.querySelectorAll("[data-open-transactions]")
+      .forEach((button) => button.addEventListener("click", () => switchPage("transactions")));
+
+    document.querySelectorAll("[data-dashboard-page]")
+      .forEach((button) => button.addEventListener("click", () =>
+        switchPage(button.dataset.dashboardPage)));
+
+    document.getElementById("categoryBudgetsForm")
+      ?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const budgets = {};
+        document.querySelectorAll("[data-category-budget]").forEach((input) => {
+          const amount = Number(input.value);
+          if (input.value && Number.isFinite(amount) && amount > 0) {
+            budgets[input.dataset.categoryBudget] = Math.round(amount * 100) / 100;
+          }
+        });
+        state.studentFeatures.categoryBudgets = budgets;
+        persistStudentFeatures();
+        renderStudentTools();
+        showToast("Category budgets saved.", "success");
+      });
+
+    document.getElementById("savingsGoalForm")
+      ?.addEventListener("submit", handleSavingsGoalSubmit);
+    document.getElementById("savingsGoalCancel")
+      ?.addEventListener("click", resetSavingsGoalForm);
+    document.getElementById("savingsGoalsList")
+      ?.addEventListener("click", handleGoalListClick);
+    document.getElementById("savingsGoalsList")
+      ?.addEventListener("submit", handleGoalContribution);
+
+    document.getElementById("homeMoneyHistory")
+      ?.addEventListener("click", handleGoalListClick);
+    document.getElementById("calendarDayTransactions")
+      ?.addEventListener("click", handleGoalListClick);
+    document.getElementById("paymentRemindersList")
+      ?.addEventListener("click", handleGoalListClick);
+    document.getElementById("paymentReminderForm")
+      ?.addEventListener("submit", handlePaymentReminderSubmit);
+    document.getElementById("paymentReminderCancel")
+      ?.addEventListener("click", resetPaymentReminderForm);
+    document.getElementById("paymentReminderRecurring")
+      ?.addEventListener("change", (event) => {
+        document.getElementById("paymentReminderFrequencyWrap").hidden =
+          !event.target.checked;
+      });
+
+    document.getElementById("expenseCalendar")
+      ?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-calendar-date]");
+        if (!button) return;
+        state.calendarSelectedDate = button.dataset.calendarDate;
+        renderExpenseCalendar();
+      });
+    document.getElementById("expenseCalendarPrev")
+      ?.addEventListener("click", () => {
+        state.calendarMonth = new Date(
+          state.calendarMonth.getFullYear(),
+          state.calendarMonth.getMonth() - 1,
+          1
+        );
+        state.calendarSelectedDate = toISODate(state.calendarMonth);
+        renderExpenseCalendar();
+      });
+    document.getElementById("expenseCalendarNext")
+      ?.addEventListener("click", () => {
+        state.calendarMonth = new Date(
+          state.calendarMonth.getFullYear(),
+          state.calendarMonth.getMonth() + 1,
+          1
+        );
+        state.calendarSelectedDate = toISODate(state.calendarMonth);
+        renderExpenseCalendar();
+      });
+
+    document.getElementById("challengeDuration")
+      ?.addEventListener("change", renderNoSpendChallenge);
+    document.getElementById("challengeForm")
+      ?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const selected = document.getElementById("challengeDuration").value;
+        const duration = selected === "custom"
+          ? Number(document.getElementById("challengeCustomDays").value)
+          : Number(selected);
+        if (!Number.isInteger(duration) || duration < 1 || duration > 365) {
+          showToast("Choose a challenge duration between 1 and 365 days.", "error");
+          return;
+        }
+        startNoSpendChallenge(duration);
+      });
+    document.getElementById("challengeCancelButton")
+      ?.addEventListener("click", () => {
+        if (!state.studentFeatures.challenge) return;
+        state.studentFeatures.challenge.status = "canceled";
+        persistStudentFeatures();
+        renderStudentTools();
+        showToast("Challenge canceled. Your transactions were not changed.", "info");
+      });
+    document.getElementById("challengeCompleteButton")
+      ?.addEventListener("click", () => {
+        if (!state.studentFeatures.challenge) return;
+        state.studentFeatures.challenge.status = "completed";
+        persistStudentFeatures();
+        renderStudentTools();
+        showToast("Challenge marked complete.", "success");
+      });
+    document.getElementById("challengeRestartButton")
+      ?.addEventListener("click", () => {
+        const duration = state.studentFeatures.challenge?.duration;
+        if (duration) startNoSpendChallenge(duration);
+      });
+  }
+
 
   /* =======================================================
      EVENTS
   ======================================================= */
 
   function wireEvents() {
+
+    wireStudentToolEvents();
 
     /* Navigation */
 
@@ -7055,19 +8539,6 @@ async function checkAuthentication() {
       );
 
 
-    document
-      .getElementById(
-        "budgetChangeBtn"
-      )
-      ?.addEventListener(
-        "click",
-        () =>
-          switchPage(
-            "settings"
-          )
-      );
-
-
     /* Transaction modal */
 
     document
@@ -7553,7 +9024,8 @@ async function checkAuthentication() {
                 connection.isOnline()
                   ? checkAuthentication()
                   : Promise.resolve(cachedUser),
-                loadCurrentProfile()
+                loadCurrentProfile(),
+                loadStudentFeatures()
               ]);
 
             user =
@@ -7571,7 +9043,10 @@ async function checkAuthentication() {
             state.user =
               user;
 
-            await loadCurrentProfile();
+            await Promise.all([
+              loadCurrentProfile(),
+              loadStudentFeatures()
+            ]);
           }
 
 
@@ -7601,7 +9076,6 @@ async function checkAuthentication() {
             ...DEFAULT_SETTINGS,
             ...Store.loadSettings()
           };
-
 
           /*
             4. Report default dates
