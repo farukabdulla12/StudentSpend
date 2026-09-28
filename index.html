@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>StudentSpend — Login</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    >
+</head>
+
+<body>
+
+<div class="auth-container">
+
+    <!-- ================= LEFT SIDE ================= -->
+
+    <div class="auth-left">
+
+        <div class="brand">
+            <div class="brand-icon">₹</div>
+            <span>StudentSpend</span>
+        </div>
+
+        <div class="left-content">
+
+            <span class="small-badge">
+                <i class="fa-solid fa-sparkles"></i>
+                Smart Student Finance
+            </span>
+
+            <h1>
+                Take control of your
+                <span>money.</span>
+            </h1>
+
+            <p>
+                Track expenses, manage income and understand
+                your spending habits — all in one simple place.
+            </p>
+
+            <div class="features">
+
+                <div class="feature">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+
+                    <div>
+                        <h3>Track your spending</h3>
+                        <p>Know where your money goes.</p>
+                    </div>
+                </div>
+
+                <div class="feature">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+
+                    <div>
+                        <h3>Set financial goals</h3>
+                        <p>Build better money habits.</p>
+                    </div>
+                </div>
+
+                <div class="feature">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+
+                    <div>
+                        <h3>Secure account</h3>
+                        <p>Your account stays protected.</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="copyright">
+            © 2026 StudentSpend. All rights reserved.
+        </div>
+
+    </div>
+
+
+    <!-- ================= RIGHT SIDE ================= -->
+
+    <div class="auth-right">
+
+        <div class="auth-card">
+
+            <div class="mobile-brand">
+                <div class="brand-icon">₹</div>
+                <span>StudentSpend</span>
+            </div>
+
+
+            <!-- ================= AUTH SECTION ================= -->
+
+            <div id="authSection">
+
+                <div class="auth-header">
+
+                    <h2 id="authTitle">
+                        Welcome back
+                    </h2>
+
+                    <p id="authSubtitle">
+                        Login to continue to your account
+                    </p>
+
+                </div>
+
+
+                <!-- LOGIN / REGISTER SWITCH -->
+
+                <div class="auth-switch">
+
+                    <button
+                        type="button"
+                        class="switch-btn active"
+                        id="loginTab"
+                    >
+                        Login
+                    </button>
+
+                    <button
+                        type="button"
+                        class="switch-btn"
+                        id="registerTab"
+                    >
+                        Create account
+                    </button>
+
+                </div>
+
+
+                <!-- EMAIL -->
+
+                <div class="input-group">
+
+                    <label for="emailInput">
+                        Email address
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <i class="fa-solid fa-envelope"></i>
+
+                        <input
+                            type="email"
+                            id="emailInput"
+                            placeholder="Enter your email"
+                            autocomplete="email"
+                        >
+
+                    </div>
+
+                    <small
+                        class="input-error"
+                        id="emailError"
+                    ></small>
+
+                </div>
+
+
+                <!-- PASSWORD -->
+
+                <div class="input-group">
+
+                    <label for="passwordInput">
+                        Password
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <i class="fa-solid fa-lock"></i>
+
+                        <input
+                            type="password"
+                            id="passwordInput"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                        >
+
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            id="passwordToggle"
+                            aria-label="Show password"
+                        >
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+
+                    </div>
+
+                    <small
+                        class="input-error"
+                        id="passwordError"
+                    ></small>
+
+                </div>
+
+
+                <!-- CONFIRM PASSWORD -->
+
+                <div
+                    class="input-group hidden"
+                    id="confirmPasswordGroup"
+                >
+
+                    <label for="confirmPasswordInput">
+                        Confirm password
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <i class="fa-solid fa-lock"></i>
+
+                        <input
+                            type="password"
+                            id="confirmPasswordInput"
+                            placeholder="Confirm your password"
+                            autocomplete="new-password"
+                        >
+
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            id="confirmPasswordToggle"
+                            aria-label="Show password"
+                        >
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+
+                    </div>
+
+                    <small
+                        class="input-error"
+                        id="confirmPasswordError"
+                    ></small>
+
+                </div>
+
+
+                <!-- MAIN ERROR -->
+
+                <div
+                    id="mainError"
+                    class="main-error"
+                    aria-live="polite"
+                ></div>
+
+
+                <!-- CONTINUE / LOGIN / REGISTER -->
+
+                <button
+                    type="button"
+                    class="primary-btn"
+                    id="authBtn"
+                >
+                    <span id="authBtnText">Login</span>
+                    <i
+                        class="fa-solid fa-arrow-right"
+                        id="authBtnIcon"
+                    ></i>
+                </button>
+
+
+                <!-- EMAIL VERIFICATION MESSAGE -->
+
+                <div
+                    id="verificationMessage"
+                    class="verification-message hidden"
+                >
+                    <div class="verification-icon">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                    </div>
+
+                    <h3>Check your email</h3>
+
+                    <p id="verificationText">
+                        We sent a verification link to your email address.
+                    </p>
+
+                    <button
+                        type="button"
+                        id="backToLoginBtn"
+                        class="secondary-btn"
+                    >
+                        Back to Login
+                    </button>
+                </div>
+
+
+                <p class="terms">
+                    By continuing, you agree to our
+                    <a href="#" id="termsLink">Terms of Service</a>
+                    and
+                    <a href="#" id="privacyLink">Privacy Policy</a>.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Supabase -->
+
+<script src="connection.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="script.js"></script>
+
+</body>
+</html>

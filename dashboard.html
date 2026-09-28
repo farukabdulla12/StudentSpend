@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudentSpend — Personal Finance for Students</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="dashboard-loading-overlay" id="dashboardLoadingOverlay" aria-live="polite">
+  <div class="dashboard-loading-card">
+    <div class="dashboard-loading-spinner" aria-hidden="true"></div>
+    <div class="dashboard-skeleton-grid" aria-hidden="true">
+      <div class="dashboard-skeleton-card short"></div>
+      <div class="dashboard-skeleton-card short"></div>
+      <div class="dashboard-skeleton-card short"></div>
+      <div class="dashboard-skeleton-card short"></div>
+      <div class="dashboard-skeleton-card long"></div>
+      <div class="dashboard-skeleton-card long"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile overlay for sidebar -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- Confetti Canvas for celebrations -->
+  <canvas id="confettiCanvas" class="confetti-canvas"></canvas>
+
+  <div class="app-shell">
+
+  <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark-wrap">
+          <span class="brand-mark" aria-hidden="true">₹</span>
+          <span class="brand-pulse"></span>
+        </div>
+        <div class="brand-text">
+         <span class="brand-name">StudentSpend</span>
+         <span class="brand-sub">Smart budget & expenses</span>
+        </div>
+      </div>
+
+    <nav class="sidebar-nav" aria-label="Main navigation">
+      <button class="nav-item is-active" data-page="dashboard" type="button">
+        <span class="nav-icon" aria-hidden="true">&#9724;</span>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-page="transactions" type="button">
+        <span class="nav-icon" aria-hidden="true">&#8693;</span>
+        <span class="nav-label">Transactions</span>
+        <span class="nav-badge" id="navTxBadge">0</span>
+      </button>
+      <button class="nav-item" data-page="reports" type="button">
+        <span class="nav-icon" aria-hidden="true">&#9711;</span>
+        <span class="nav-label">Reports</span>
+      </button>
+      <button class="nav-item" data-page="settings" type="button">
+        <span class="nav-icon" aria-hidden="true">&#9881;</span>
+        <span class="nav-label">Settings</span>
+      </button>
+      <button class="nav-item" data-page="profile" type="button">
+        <span class="nav-icon" aria-hidden="true">&#128100;</span>
+        <span class="nav-label">Profile</span>
+      </button>
+      <button class="nav-item" data-page="about" type="button">
+        <span class="nav-icon" aria-hidden="true">&#8505;</span>
+        <span class="nav-label">About</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="tip-card">
+        <div class="tip-head">
+          <span class="tip-label">Student Tip</span>
+          <button class="tip-refresh-btn" id="tipRefreshBtn" type="button" aria-label="Next tip" title="Get another tip">
+            <span class="refresh-icon" aria-hidden="true">&#8635;</span>
+          </button>
+        </div>
+        <p id="sidebarTip">Track a purchase the moment you make it — memory is the least reliable ledger.</p>
+      </div>
+      <span class="app-version">StudentSpend v1.2 &bull; Offline Ready</span>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN AREA ============ -->
+  <div class="main-area">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuToggle" type="button" aria-label="Toggle menu">
+        <span aria-hidden="true">&#9776;</span>
+      </button>
+
+      <div class="topbar-title">
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageDesc">Your financial position at a glance</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle theme">
+          <span id="themeIcon" aria-hidden="true">&#9789;</span>
+        </button>
+        <button class="btn btn-primary" id="addTransactionBtn" type="button">
+          <span class="btn-icon" aria-hidden="true">+</span>
+          <span class="btn-label">Add Transaction</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT CONTAINER -->
+    <main class="content">
+
+      <!-- ===== DASHBOARD PAGE ===== -->
+      <section class="page is-active" id="page-dashboard" aria-labelledby="pageTitle">
+
+        <!-- Month Navigation Bar -->
+        <div class="month-nav-container">
+          <div class="month-nav">
+            <button class="icon-btn icon-btn-sm" id="prevMonth" type="button" aria-label="Previous month">&#8249;</button>
+            <span class="month-label" id="monthLabel">September 2026</span>
+            <button class="icon-btn icon-btn-sm" id="nextMonth" type="button" aria-label="Next month">&#8250;</button>
+          </div>
+          <button class="btn-subtle" id="todayMonthBtn" type="button">
+            <span>&#8634;</span> This Month
+          </button>
+        </div>
+
+        <!-- 4 Key Stat Cards -->
+        <div class="summary-grid">
+          <div class="summary-card accent-balance">
+            <div class="summary-top">
+              <span class="summary-icon">&#9679;</span>
+              <span class="summary-label">Available Balance</span>
+            </div>
+            <div class="summary-value" id="statBalance" data-raw-value="0">₹0</div>
+            <div class="summary-sub" id="statBalanceSub">Income minus expenses</div>
+          </div>
+
+          <div class="summary-card accent-income">
+            <div class="summary-top">
+              <span class="summary-icon">&#8595;</span>
+              <span class="summary-label">Money Received</span>
+            </div>
+            <div class="summary-value" id="statIncome" data-raw-value="0">₹0</div>
+            <div class="summary-sub" id="statIncomeSub">This month</div>
+          </div>
+
+          <div class="summary-card accent-expense">
+            <div class="summary-top">
+              <span class="summary-icon">&#8593;</span>
+              <span class="summary-label">Total Spent</span>
+            </div>
+            <div class="summary-value" id="statExpense" data-raw-value="0">₹0</div>
+            <div class="summary-sub" id="statExpenseSub">This month</div>
+          </div>
+
+          <div class="summary-card accent-count">
+            <div class="summary-top">
+              <span class="summary-icon">&#8776;</span>
+              <span class="summary-label">Transactions</span>
+            </div>
+            <div class="summary-value" id="statCount" data-raw-value="0">0</div>
+            <div class="summary-sub" id="statCountSub">Recorded this month</div>
+          </div>
+        </div>
+
+        <!-- Trend Chart & Budget Section -->
+        <div class="dash-grid">
+          <div class="panel panel-chart">
+            <div class="panel-head panel-head-row">
+              <div>
+                <h2>Income vs Expense</h2>
+                <p>6-Month cash flow trend</p>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><i class="dot dot-income"></i>Income</span>
+                <span class="legend-item"><i class="dot dot-expense"></i>Expense</span>
+              </div>
+            </div>
+            <div class="chart-canvas-container" id="trendChartContainer">
+              <canvas id="trendChart" height="230"></canvas>
+              <div class="chart-tooltip" id="trendTooltip"></div>
+            </div>
+          </div>
+
+          <div class="panel panel-budget">
+            <div class="panel-head">
+              <h2>Monthly Budget</h2>
+              <p id="budgetPanelSub">Usage for selected month</p>
+            </div>
+            <div class="budget-figures">
+              <div><span class="fig-label">Spent</span><span class="fig-value" id="budgetSpent" data-raw-value="0">₹0</span></div>
+              <div><span class="fig-label">Budget</span><span class="fig-value" id="budgetTotal" data-raw-value="0">₹0</span></div>
+            </div>
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="budgetProgressBar">
+              <div class="progress-fill" id="budgetProgress" style="width:0%"></div>
+            </div>
+            <div class="budget-footline">
+              <span class="budget-usage" id="budgetUsage">
+                <span id="budgetWarningIcon" class="budget-warning-icon" role="img" aria-label="Budget usage warning" hidden>&#9888;</span>
+                <span id="budgetPercent">0% used</span>
+              </span>
+              <span id="budgetRemaining">₹0 remaining</span>
+            </div>
+            <div class="budget-quick-actions">
+              <button class="link-btn-subtle" id="budgetChangeBtn" type="button">Adjust Budget Target &rarr;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-Column Bottom Dashboard Grid -->
+        <div class="dash-grid dash-grid-2">
+          <!-- Category Donut Breakdown -->
+          <div class="panel panel-donut">
+            <div class="panel-head">
+              <h2>Where it went</h2>
+              <p>Category breakdown (selected month)</p>
+            </div>
+            <div class="donut-wrap">
+              <div class="donut-canvas-box">
+                <canvas id="donutChart" width="180" height="180"></canvas>
+                <div class="donut-tooltip" id="donutTooltip"></div>
+              </div>
+              <ul class="donut-legend" id="donutLegend"></ul>
+            </div>
+          </div>
+
+          <!-- Smart Insights -->
+          <div class="panel panel-insights">
+            <div class="panel-head">
+              <h2>Smart Insights</h2>
+              <p>Generated from your habits</p>
+            </div>
+            <ul class="insight-list" id="insightList"></ul>
+          </div>
+
+          <!-- Recent Transactions -->
+          <div class="panel panel-recent">
+            <div class="panel-head panel-head-row">
+              <div>
+                <h2>Recent Activity</h2>
+                <p>Latest entries (click to edit)</p>
+              </div>
+              <button class="link-btn" id="viewAllBtn" type="button">View all &rarr;</button>
+            </div>
+            <ul class="recent-list" id="recentList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TRANSACTIONS PAGE ===== -->
+      <section class="page" id="page-transactions" aria-labelledby="pageTitle">
+        <div class="panel">
+          <div class="filters-bar">
+            <div class="search-field">
+              <span class="search-icon" aria-hidden="true">&#9906;</span>
+              <input type="text" id="searchInput" placeholder="Search by title, note, or amount..." aria-label="Search transactions">
+              <button class="search-clear-btn" id="searchClearBtn" type="button" aria-label="Clear search" hidden>&times;</button>
+            </div>
+            <select id="filterType" aria-label="Filter by type">
+              <option value="all">All Types</option>
+              <option value="income">Money Received</option>
+              <option value="expense">Expense</option>
+            </select>
+            <select id="filterCategory" aria-label="Filter by category">
+              <option value="all">All Categories</option>
+            </select>
+            <select id="filterMonth" aria-label="Filter by month">
+              <option value="all">All Months</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" id="resetFiltersBtn" type="button" title="Reset all filters">Reset</button>
+          </div>
+
+          <!-- Table scroll area -->
+          <div class="table-scroll">
+            <table class="tx-table" id="txTable">
+              <thead>
+                <tr>
+                  <th>Transaction</th>
+                  <th>Category</th>
+                  <th>Date</th>
+                  <th>Payment Method</th>
+                  <th style="text-align:right;">Amount</th>
+                  <th style="text-align:center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="txTableBody"></tbody>
+            </table>
+
+            <!-- Empty State for Transactions -->
+            <div class="empty-state" id="txEmptyState" hidden>
+              <div class="empty-icon-wrap">
+                <span class="empty-icon" aria-hidden="true">&#128176;</span>
+              </div>
+              <h3>No transactions yet</h3>
+              <p>Add your first purchase or income to start tracking your spending.</p>
+              <div class="empty-actions">
+                <button class="btn btn-primary" id="emptyAddBtn" type="button">+ Add Transaction</button>
+              </div>
+            </div>
+
+            <!-- Filter No Match State -->
+            <div class="empty-state" id="txNoMatchState" hidden>
+              <div class="empty-icon-wrap"><span class="empty-icon">&#128269;</span></div>
+              <h3>No matching transactions</h3>
+              <p>No transactions match your current search and filters. Try adjusting your query.</p>
+              <button class="btn btn-secondary btn-sm" id="clearFilterBtn" type="button">Clear Filters</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== REPORTS PAGE ===== -->
+      <section class="page" id="page-reports" aria-labelledby="pageTitle">
+        <!-- Month selector for Reports page -->
+        <div class="month-nav-container" id="reportMonthNav">
+          <div class="month-nav">
+            <button class="icon-btn icon-btn-sm" id="repPrevMonth" type="button" aria-label="Previous month">&#8249;</button>
+            <span class="month-label" id="repMonthLabel">September 2026</span>
+            <button class="icon-btn icon-btn-sm" id="repNextMonth" type="button" aria-label="Next month">&#8250;</button>
+          </div>
+          <button class="btn-subtle" id="repTodayMonthBtn" type="button">
+            <span>&#8634;</span> This Month
+          </button>
+        </div>
+        <div class="panel report-export-panel">
+          <div class="report-period-controls">
+            <label for="reportPeriod">Report period</label>
+            <select id="reportPeriod">
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly (last 7 days)</option>
+              <option value="custom">Custom date range</option>
+            </select>
+            <div class="report-custom-dates" id="reportCustomDates" hidden>
+              <label for="reportStartDate">From</label>
+              <input type="date" id="reportStartDate">
+              <label for="reportEndDate">To</label>
+              <input type="date" id="reportEndDate">
+            </div>
+            <button class="btn btn-primary" id="downloadReportBtn" type="button">
+              <span aria-hidden="true">&#8681;</span> Download PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-top"><span class="summary-icon">&#8776;</span><span class="summary-label">Average Expense</span></div>
+            <div class="summary-value" id="repAvgExpense" data-raw-value="0">₹0</div>
+            <div class="summary-sub" id="repAvgExpenseSub">Per expense transaction</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-top"><span class="summary-icon">&#9650;</span><span class="summary-label">Largest Expense</span></div>
+            <div class="summary-value" id="repLargestExpense" data-raw-value="0">₹0</div>
+            <div class="summary-sub" id="repLargestExpenseSub">—</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-top"><span class="summary-icon">&#9679;</span><span class="summary-label">Top Category</span></div>
+            <div class="summary-value" id="repTopCategory">—</div>
+            <div class="summary-sub" id="repTopCategorySub">of total spending</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-top"><span class="summary-icon">&#8593;</span><span class="summary-label">Saving Rate</span></div>
+            <div class="summary-value" id="repSavingRate" data-raw-value="0">0%</div>
+            <div class="summary-sub" id="repSavingRateSub">Selected month</div>
+          </div>
+        </div>
+
+        <div class="dash-grid dash-grid-2">
+          <div class="panel panel-donut">
+            <div class="panel-head">
+              <h2>Category Breakdown</h2>
+              <p id="reportBreakdownSub">Spending distribution for selected period</p>
+            </div>
+            <div class="donut-wrap">
+              <div class="donut-canvas-box">
+                <canvas id="reportDonutChart" width="180" height="180"></canvas>
+                <div class="donut-tooltip" id="reportDonutTooltip"></div>
+              </div>
+              <ul class="donut-legend" id="reportDonutLegend"></ul>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Top Spending Categories</h2>
+              <p>Ranked by amount spent</p>
+            </div>
+            <ul class="rank-list" id="rankList"></ul>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Period Summary</h2>
+              <p id="monthlySummarySub">Selected month</p>
+            </div>
+            <ul class="summary-list">
+              <li><span>Money Received</span><strong id="msIncome" class="is-income">₹0</strong></li>
+              <li><span>Total Spent</span><strong id="msExpense" class="is-expense">₹0</strong></li>
+              <li><span>Net Balance</span><strong id="msNet">₹0</strong></li>
+              <li><span>Number of Transactions</span><strong id="msCount">0</strong></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== ABOUT PAGE ===== -->
+      <section class="page" id="page-about" aria-labelledby="pageTitle">
+        <div class="about-page">
+          <article class="panel about-overview">
+            <div class="about-heading">
+              <span class="about-mark" aria-hidden="true">₹</span>
+              <div>
+                <span class="about-eyebrow">StudentSpend</span>
+                <h2>About StudentSpend</h2>
+              </div>
+            </div>
+            <div class="about-copy">
+              <p>StudentSpend is a simple and student-friendly personal finance management platform designed to help students track their income, expenses, budgets, and spending habits in one place.</p>
+              <p>Whether you receive money from home, spend on food, transportation, education, or entertainment, StudentSpend helps you understand where your money goes and manage it more effectively.</p>
+              <p>Our goal is to make personal finance simple, organized, and accessible for every student.</p>
+            </div>
+          </article>
+
+          <aside class="panel about-support">
+            <div class="about-support-icon" aria-hidden="true">&#9993;</div>
+            <div>
+              <h2>For Inquiries &amp; Support</h2>
+              <p>If you have any questions, suggestions, feedback, or need assistance with StudentSpend, feel free to reach out to us. We would be happy to hear from you and help improve your experience.</p>
+              <a class="about-email" href="mailto:studentspend.care@gmail.com">
+                <span aria-hidden="true">&#9993;</span>
+                studentspend.care@gmail.com
+              </a>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== PROFILE PAGE ===== -->
+      <section class="page" id="page-profile" aria-labelledby="pageTitle">
+        <div class="profile-page">
+          <div class="panel profile-hero-panel">
+            <div class="profile-hero-text">
+              <h2 id="profileDisplayName">Student</h2>
+              <p id="profileDisplayEmail">Loading email...</p>
+              <span class="profile-status-badge">&#10003; Account verified</span>
+            </div>
+          </div>
+
+          <div class="panel profile-card">
+            <div class="panel-head">
+              <h2>Personal Information</h2>
+              <p>Update the details shown on your StudentSpend profile.</p>
+            </div>
+            <form id="profileForm" class="profile-form">
+              <div class="profile-form-grid">
+                <div class="profile-field">
+                  <label for="profileFirstName">First Name</label>
+                  <input id="profileFirstName" type="text" maxlength="40" placeholder="Enter your first name" autocomplete="given-name" required>
+                </div>
+                <div class="profile-field">
+                  <label for="profileMiddleName">Middle Name</label>
+                  <input id="profileMiddleName" type="text" maxlength="40" placeholder="Enter your middle name" autocomplete="additional-name">
+                </div>
+                <div class="profile-field">
+                  <label for="profileLastName">Last Name</label>
+                  <input id="profileLastName" type="text" maxlength="40" placeholder="Enter your last name" autocomplete="family-name" required>
+                </div>
+                <div class="profile-field">
+                  <label for="profileAge">Age</label>
+                  <input id="profileAge" type="number" min="13" max="100" placeholder="Enter your age" autocomplete="off" required>
+                </div>
+                <div class="profile-field">
+                  <label for="profilePhone">Indian Mobile Number</label>
+                  <div class="profile-phone-input">
+                    <span class="profile-phone-prefix" aria-hidden="true">+91</span>
+                    <input id="profilePhone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" pattern="[6-9][0-9]{9}" placeholder="9876543210" aria-describedby="profilePhoneHelp" required>
+                  </div>
+                  <small id="profilePhoneHelp">Required. Enter a 10-digit Indian mobile number starting with 6–9.</small>
+                </div>
+                <div class="profile-field profile-field-full">
+                  <label for="profileEmail">Email Address</label>
+                  <input id="profileEmail" type="email" readonly>
+                  <small>Your login email comes from your Supabase account.</small>
+                </div>
+              </div>
+              <div class="profile-actions">
+                <button class="btn btn-primary" type="submit" id="saveProfileBtn">Save Profile</button>
+                <button class="btn btn-secondary" type="button" id="logoutBtn">Log Out</button>
+              </div>
+            </form>
+          </div>
+                <!-- DAILY REMINDER -->
+      <div class="panel profile-card reminder-card">
+        <div class="panel-head">
+          <h2>Daily Expense Reminder</h2>
+          <p>Get a reminder to record your daily spending.</p>
+        </div>
+
+        <div class="reminder-setting-row">
+          <div class="reminder-setting-info">
+            <div class="reminder-icon">🔔</div>
+
+            <div>
+              <h3>Daily Reminder</h3>
+              <p id="reminderStatusText">
+                Reminder is currently disabled.
+              </p>
+            </div>
+          </div>
+
+          <label class="reminder-switch">
+            <input
+              type="checkbox"
+              id="dailyReminderEnabled"
+            >
+            <span class="reminder-slider"></span>
+          </label>
+        </div>
+
+        <div class="reminder-time-row">
+          <div class="profile-field">
+            <label for="dailyReminderTime">
+              Reminder Time
+            </label>
+
+            <input
+              id="dailyReminderTime"
+              class="reminder-time-input"
+              type="time"
+              value="20:00"
+            >
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button
+            class="btn btn-primary"
+            type="button"
+            id="saveReminderBtn"
+          >
+            Save Reminder
+          </button>
+
+          <span
+            id="reminderSaveStatus"
+            class="reminder-save-status"
+            aria-live="polite"
+          ></span>
+        </div>
+      </div>
+
+          <div class="panel profile-security-card">
+            <div class="profile-security-icon">&#128274;</div>
+            <div>
+              <h3>Your account</h3>
+              <p>Your email is used for login. Never share your password with anyone.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SETTINGS PAGE ===== -->
+      <section class="page" id="page-settings" aria-labelledby="pageTitle">
+        <div class="settings-grid">
+
+          <div class="panel settings-card">
+            <div class="panel-head">
+              <h2>Appearance</h2>
+              <p>Choose your preferred interface theme</p>
+            </div>
+            <div class="theme-picker">
+              <button class="theme-option" id="lightModeBtn" type="button">
+                <span class="theme-swatch swatch-light" aria-hidden="true"></span>
+                Light mode
+              </button>
+              <button class="theme-option" id="darkModeBtn" type="button">
+                <span class="theme-swatch swatch-dark" aria-hidden="true"></span>
+                Dark mode
+              </button>
+            </div>
+          </div>
+
+          <div class="panel settings-card">
+            <div class="panel-head">
+              <h2>Monthly Budget Target</h2>
+              <p>Set a spending ceiling to receive smart alerts</p>
+            </div>
+            <form class="inline-form" id="budgetForm">
+              <label for="budgetInput">Monthly Budget Limit (₹)</label>
+              <div class="inline-form-row">
+                <input type="number" id="budgetInput" min="0" step="1" inputmode="numeric" required placeholder="10000">
+                <button class="btn btn-primary" type="submit">Save Target</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel settings-card">
+            <div class="panel-head">
+              <h2>Export Data</h2>
+              <p>Save a secure JSON backup of your records</p>
+            </div>
+            <p class="settings-copy">Includes all recorded transactions, categories, payment methods, and preferences.</p>
+            <button class="btn btn-secondary" id="exportBtn" type="button">
+              <span>&#8681;</span> Export Backup (JSON)
+            </button>
+          </div>
+
+          <div class="panel settings-card">
+            <div class="panel-head">
+              <h2>Import Data</h2>
+              <p>Restore your data from a previous backup file</p>
+            </div>
+            <p class="settings-copy">Upload a valid StudentSpend backup JSON file to restore your transactions.</p>
+            <input type="file" id="importInput" accept="application/json" hidden>
+            <button class="btn btn-secondary" id="importBtn" type="button">
+              <span>&#8679;</span> Import Backup File
+            </button>
+          </div>
+
+          <div class="panel settings-card panel-danger">
+            <div class="panel-head">
+              <h2>Clear All Data</h2>
+              <p>Reset and remove all transactions</p>
+            </div>
+            <p class="settings-copy">Permanently removes all transactions stored in your local browser storage. This cannot be undone.</p>
+            <button class="btn btn-danger" id="clearBtn" type="button">
+              <span>&#128465;</span> Clear All Data
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============ ADD / EDIT TRANSACTION MODAL ============ -->
+<div class="modal-overlay" id="txModalOverlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="txModalTitle">
+    <div class="modal-head">
+      <div class="modal-title-wrap">
+        <span class="modal-icon" id="modalTypeBadgeIcon">&#128184;</span>
+        <h2 id="txModalTitle">Add Transaction</h2>
+      </div>
+      <button class="icon-btn icon-btn-sm" id="txModalClose" type="button" aria-label="Close dialog">&times;</button>
+    </div>
+
+    <form id="txForm" class="modal-form" novalidate>
+      <input type="hidden" id="txId">
+
+      <div class="type-switch" role="group" aria-label="Transaction Type">
+        <button type="button" class="type-option is-active" id="typeExpenseBtn" data-type="expense">
+          <span class="type-dot expense-dot"></span> Expense
+        </button>
+        <button type="button" class="type-option" id="typeIncomeBtn" data-type="income">
+          <span class="type-dot income-dot"></span> Money Received
+        </button>
+      </div>
+
+      <div class="form-row">
+        <label for="txAmount">Amount (₹) <span class="required-star">*</span></label>
+        <div class="input-prefix-wrap">
+          <span class="input-currency-prefix">₹</span>
+          <input type="number" id="txAmount" min="0.01" step="any" inputmode="decimal" required placeholder="0.00" class="input-with-prefix">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="txTitle">Title / Description <span class="required-star">*</span></label>
+        <input type="text" id="txTitle" required placeholder="e.g. Canteen lunch, Metro recharge" maxlength="60">
+      </div>
+
+      <div class="form-row-split">
+        <div class="form-row">
+          <label for="txCategory">Category <span class="required-star">*</span></label>
+          <select id="txCategory" required></select>
+        </div>
+        <div class="form-row">
+          <label for="txDate">Date <span class="required-star">*</span></label>
+          <input type="date" id="txDate" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="txPayment">Payment Method <span class="required-star">*</span></label>
+        <select id="txPayment" required>
+          <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
+          <option value="Cash">Cash</option>
+          <option value="Card">Debit / Credit Card</option>
+          <option value="Bank Transfer">Net Banking / Transfer</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="txNote">Note <span class="optional">(optional)</span></label>
+        <textarea id="txNote" rows="2" maxlength="140" placeholder="Add extra details, split shares, or tags..."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="txCancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="txSubmitBtn">Save Transaction</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ CONFIRM DIALOG ============ -->
+<div class="modal-overlay" id="confirmOverlay" aria-hidden="true">
+  <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+    <div class="confirm-icon-wrap" id="confirmIconWrap">&#9888;</div>
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p id="confirmMessage">This action cannot be undone.</p>
+    <div class="modal-actions modal-actions-center">
+      <button class="btn btn-ghost" id="confirmCancel" type="button">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ OVER-BUDGET WARNING ============ -->
+<div class="modal-overlay" id="budgetWarningOverlay" aria-hidden="true">
+  <div class="modal modal-confirm budget-warning-modal" role="alertdialog" aria-modal="true" aria-labelledby="budgetWarningTitle" aria-describedby="budgetWarningMessage">
+    <div class="confirm-icon-wrap">&#9888;</div>
+    <h2 id="budgetWarningTitle">Monthly budget exceeded</h2>
+    <p id="budgetWarningMessage"></p>
+    <div class="modal-actions modal-actions-center">
+      <button class="btn btn-danger" id="budgetWarningClose" type="button">Got it</button>
+    </div>
+  </div>
+</div>
+<!-- PROFILE COMPLETION POPUP -->
+<div
+  class="reminder-overlay"
+  id="profileCompletionPopup"
+  hidden
+  aria-hidden="true"
+>
+  <div
+    class="reminder-popup profile-completion-popup"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="profileCompletionTitle"
+    aria-describedby="profileCompletionMessage"
+  >
+    <div class="reminder-popup-icon" aria-hidden="true">!</div>
+    <div class="reminder-popup-content">
+      <h2 id="profileCompletionTitle">Complete your profile</h2>
+      <p id="profileCompletionMessage">
+        Add your first and last name, age, and Indian mobile number to complete your profile. Middle name is optional.
+      </p>
+    </div>
+    <div class="reminder-popup-actions profile-completion-actions">
+      <button type="button" class="btn btn-ghost" id="dismissProfileCompletion">
+        Later
+      </button>
+      <button type="button" class="btn btn-primary" id="openProfileCompletion">
+        Complete Profile
+      </button>
+    </div>
+  </div>
+</div>
+<!-- DAILY REMINDER POPUP -->
+<div
+  class="reminder-overlay"
+  id="dailyReminderPopup"
+  hidden
+  aria-hidden="true"
+>
+  <div
+    class="reminder-popup"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dailyReminderPopupTitle"
+  >
+
+    <div class="reminder-popup-icon">
+      🔔
+    </div>
+
+    <div class="reminder-popup-content">
+      <h2 id="dailyReminderPopupTitle">
+        Daily Expense Reminder
+      </h2>
+
+      <p id="dailyReminderPopupMessage">
+        Don't forget to record today's expenses in StudentSpend.
+      </p>
+    </div>
+
+    <div class="reminder-popup-actions">
+      <button
+        type="button"
+        class="btn btn-primary"
+        id="closeDailyReminderPopup"
+      >
+        Got it
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ TOAST NOTIFICATIONS STACK ============ -->
+<div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+<script src="connection.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>
