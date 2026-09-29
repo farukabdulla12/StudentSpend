@@ -299,11 +299,13 @@ async function checkAuthentication() {
           )
           .map((reminder) => ({
             id: reminder.id,
+            kind: reminder.kind === "repayment" ? "repayment" : "payment",
             name: reminder.name.slice(0, 60),
+            personName: String(reminder.personName || "").slice(0, 60),
             amount: Math.round(Number(reminder.amount) * 100) / 100,
             dueDate: String(reminder.dueDate || ""),
             category: String(reminder.category || "Other").slice(0, 60),
-            recurring: reminder.recurring === true,
+            recurring: reminder.kind !== "repayment" && reminder.recurring === true,
             recurrence: ["weekly", "monthly"].includes(reminder.recurrence)
               ? reminder.recurrence
               : "monthly",
@@ -3234,19 +3236,27 @@ async function checkAuthentication() {
         : "";
     }
 
-    const upcoming =
+    const nextReminder =
       state.studentFeatures.paymentReminders
-        .filter((reminder) =>
-          !reminder.completed &&
-          reminder.dueDate >= todayISO()
-        )
+        .filter((reminder) => !reminder.completed)
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
     const paymentSummary =
       document.getElementById("dashboardPaymentSummary");
     if (paymentSummary) {
-      paymentSummary.textContent = upcoming
-        ? `${upcoming.name} · ${formatCurrency(upcoming.amount)} · ${formatDateDisplay(upcoming.dueDate)}`
-        : "No upcoming payments.";
+      if (!nextReminder) {
+        paymentSummary.textContent = "No upcoming payments or repayments.";
+      } else {
+        const timing =
+          nextReminder.dueDate < todayISO()
+            ? "Overdue"
+            : nextReminder.dueDate === todayISO()
+              ? "Due today"
+              : formatDateDisplay(nextReminder.dueDate);
+        paymentSummary.textContent =
+          nextReminder.kind === "repayment"
+            ? `Expected from ${nextReminder.personName || nextReminder.name} · ${formatCurrency(nextReminder.amount)} · ${timing}`
+            : `${nextReminder.name} · ${formatCurrency(nextReminder.amount)} · ${timing}`;
+      }
     }
 
     const challenge = state.studentFeatures.challenge;
@@ -3872,31 +3882,47 @@ async function checkAuthentication() {
       ["upcoming", "Upcoming"],
       ["completed", "Completed"]
     ];
-    container.innerHTML = groups.map(([status, title]) => {
-      const reminders = state.studentFeatures.paymentReminders
-        .filter((reminder) => paymentReminderStatus(reminder) === status)
-        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-      return `
-        <section class="reminder-group">
-          <h3>${title}</h3>
-          ${reminders.length
-            ? reminders.map((reminder) => `
-                <div class="feature-list-row payment-reminder-row">
-                  <div>
-                    <strong>${escapeHtml(reminder.name)} <span class="reminder-status status-${status}">${status === "due" ? "Due today" : status}</span></strong>
-                    <span>${escapeHtml(reminder.category)} · ${formatCurrency(reminder.amount)} · ${escapeHtml(formatDateDisplay(reminder.dueDate))}${reminder.recurring ? ` · Repeats ${escapeHtml(reminder.recurrence)}` : ""}</span>
-                  </div>
-                  <div class="feature-row-actions">
-                    ${!reminder.completed ? `<button class="link-btn-subtle" type="button" data-feature-action="complete-reminder" data-id="${escapeHtml(reminder.id)}">Complete</button>` : ""}
-                    <button class="link-btn-subtle" type="button" data-feature-action="edit-reminder" data-id="${escapeHtml(reminder.id)}">Edit</button>
-                    <button class="link-btn-subtle feature-delete" type="button" data-feature-action="delete-reminder" data-id="${escapeHtml(reminder.id)}">Delete</button>
-                  </div>
+    const renderKind = (kind, title) => {
+      const remindersForKind =
+        state.studentFeatures.paymentReminders.filter((reminder) =>
+          (reminder.kind === "repayment" ? "repayment" : "payment") === kind
+        );
+      const content = groups.map(([status, heading]) => {
+        const reminders = remindersForKind
+          .filter((reminder) => paymentReminderStatus(reminder) === status)
+          .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+        if (!reminders.length) return "";
+        return `
+          <section class="reminder-group">
+            <h4>${kind === "repayment" && status === "completed" ? "Received" : heading}</h4>
+            ${reminders.map((reminder) => `
+              <div class="feature-list-row payment-reminder-row">
+                <div>
+                <strong>${escapeHtml(reminder.name)} <span class="reminder-status status-${status}">${kind === "repayment" && status === "completed" ? "Received" : status === "due" ? "Due today" : status}</span></strong>
+                  <span>${kind === "repayment"
+                    ? `Expected from ${escapeHtml(reminder.personName || "someone")} · ${formatCurrency(reminder.amount)} · Expected ${escapeHtml(formatDateDisplay(reminder.dueDate))}`
+                    : `${escapeHtml(reminder.category)} · ${formatCurrency(reminder.amount)} · ${escapeHtml(formatDateDisplay(reminder.dueDate))}${reminder.recurring ? ` · Repeats ${escapeHtml(reminder.recurrence)}` : ""}`}</span>
                 </div>
-              `).join("")
-            : '<p class="feature-empty">No payments in this group.</p>'}
+                <div class="feature-row-actions">
+                  ${!reminder.completed ? `<button class="link-btn-subtle" type="button" data-feature-action="complete-reminder" data-id="${escapeHtml(reminder.id)}">${kind === "repayment" ? "Mark received" : "Mark paid"}</button>` : ""}
+                  <button class="link-btn-subtle" type="button" data-feature-action="edit-reminder" data-id="${escapeHtml(reminder.id)}">Edit</button>
+                  <button class="link-btn-subtle feature-delete" type="button" data-feature-action="delete-reminder" data-id="${escapeHtml(reminder.id)}">Delete</button>
+                </div>
+              </div>
+            `).join("")}
+          </section>
+        `;
+      }).join("");
+      return `
+        <section class="reminder-type-group">
+          <h3>${title}</h3>
+          ${content || `<p class="feature-empty">${kind === "repayment" ? "No money lent reminders yet. Add one to remember when to follow up." : "No payment reminders yet."}</p>`}
         </section>
       `;
-    }).join("");
+    };
+    container.innerHTML =
+      renderKind("payment", "Payments to make") +
+      renderKind("repayment", "Money lent · expected repayments");
   }
 
 
@@ -7725,13 +7751,16 @@ async function checkAuthentication() {
       const reminder = state.studentFeatures.paymentReminders.find((item) => item.id === id);
       if (!reminder) return;
       document.getElementById("paymentReminderId").value = reminder.id;
+      document.getElementById("paymentReminderKind").value =
+        reminder.kind === "repayment" ? "repayment" : "payment";
+      document.getElementById("paymentReminderPerson").value = reminder.personName || "";
       document.getElementById("paymentReminderName").value = reminder.name;
       document.getElementById("paymentReminderAmount").value = String(reminder.amount);
       document.getElementById("paymentReminderDate").value = reminder.dueDate;
       document.getElementById("paymentReminderCategory").value = reminder.category;
       document.getElementById("paymentReminderRecurring").checked = reminder.recurring;
       document.getElementById("paymentReminderFrequency").value = reminder.recurrence || "monthly";
-      document.getElementById("paymentReminderFrequencyWrap").hidden = !reminder.recurring;
+      updatePaymentReminderKindFields();
       document.getElementById("paymentReminderSubmit").textContent = "Save changes";
       document.getElementById("paymentReminderCancel").hidden = false;
       document.getElementById("paymentReminderName").focus();
@@ -7763,7 +7792,9 @@ async function checkAuthentication() {
       showToast(
         completedReminder?.recurring
           ? "Payment marked complete; the next reminder is scheduled. No transaction was created."
-          : "Payment marked complete. No transaction was created.",
+          : completedReminder?.kind === "repayment"
+            ? "Repayment marked received. No transaction was created."
+            : "Payment marked complete. No transaction was created.",
         "success"
       );
       return;
@@ -7803,21 +7834,39 @@ async function checkAuthentication() {
   function handlePaymentReminderSubmit(event) {
     event.preventDefault();
     const id = document.getElementById("paymentReminderId").value;
+    const kind = document.getElementById("paymentReminderKind").value;
+    const personName = document.getElementById("paymentReminderPerson").value.trim();
     const name = document.getElementById("paymentReminderName").value.trim();
     const amount = Number(document.getElementById("paymentReminderAmount").value);
     const dueDate = document.getElementById("paymentReminderDate").value;
-    if (!name || !Number.isFinite(amount) || amount <= 0 || !dueDate) {
-      showToast("Enter a payment name, valid amount, and due date.", "error");
+    if (
+      !name ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !dueDate ||
+      (kind === "repayment" && !personName)
+    ) {
+      showToast(
+        kind === "repayment"
+          ? "Enter what the money was for, who owes you, a valid amount, and an expected repayment date."
+          : "Enter a payment name, valid amount, and due date.",
+        "error"
+      );
       return;
     }
     const existing = state.studentFeatures.paymentReminders.find((item) => item.id === id);
     const reminder = {
       id: id || uid(),
+      kind: kind === "repayment" ? "repayment" : "payment",
+      personName: kind === "repayment" ? personName : "",
       name,
       amount: Math.round(amount * 100) / 100,
       dueDate,
-      category: document.getElementById("paymentReminderCategory").value,
-      recurring: document.getElementById("paymentReminderRecurring").checked,
+      category: kind === "repayment"
+        ? "Money Lent"
+        : document.getElementById("paymentReminderCategory").value,
+      recurring: kind === "payment" &&
+        document.getElementById("paymentReminderRecurring").checked,
       recurrence: document.getElementById("paymentReminderFrequency").value,
       completed: existing?.completed || false
     };
@@ -7827,7 +7876,12 @@ async function checkAuthentication() {
     resetPaymentReminderForm();
     persistStudentFeatures();
     renderStudentTools();
-    showToast(id ? "Payment reminder updated." : "Payment reminder added.", "success");
+    showToast(
+      kind === "repayment"
+        ? id ? "Repayment reminder updated." : "Repayment reminder added."
+        : id ? "Payment reminder updated." : "Payment reminder added.",
+      "success"
+    );
   }
 
   function resetPaymentReminderForm() {
@@ -7835,7 +7889,34 @@ async function checkAuthentication() {
     document.getElementById("paymentReminderId").value = "";
     document.getElementById("paymentReminderSubmit").textContent = "Add reminder";
     document.getElementById("paymentReminderCancel").hidden = true;
-    document.getElementById("paymentReminderFrequencyWrap").hidden = true;
+    updatePaymentReminderKindFields();
+  }
+
+  function updatePaymentReminderKindFields() {
+    const isRepayment =
+      document.getElementById("paymentReminderKind").value === "repayment";
+    const recurring =
+      document.getElementById("paymentReminderRecurring");
+
+    document.getElementById("paymentReminderPersonWrap").hidden = !isRepayment;
+    document.getElementById("paymentReminderPerson").required = isRepayment;
+    document.getElementById("paymentReminderCategoryWrap").hidden = isRepayment;
+    document.getElementById("paymentReminderRecurringWrap").hidden = isRepayment;
+    document.getElementById("paymentReminderFrequencyWrap").hidden =
+      isRepayment || !recurring.checked;
+    document.getElementById("paymentReminderNameLabel").firstChild.textContent =
+      isRepayment ? "What was the money for?" : "Payment name";
+    document.getElementById("paymentReminderName").placeholder =
+      isRepayment ? "Lunch, tickets, or another loan" : "Mobile Recharge";
+    document.getElementById("paymentReminderDateLabel").firstChild.textContent =
+      isRepayment ? "Expected repayment date" : "Due date";
+    document.getElementById("paymentReminderPerson").value =
+      isRepayment
+        ? document.getElementById("paymentReminderPerson").value
+        : "";
+    if (isRepayment) {
+      recurring.checked = false;
+    }
   }
 
   function nextReminderDate(dueDate, recurrence) {
@@ -7937,6 +8018,8 @@ async function checkAuthentication() {
       ?.addEventListener("submit", handlePaymentReminderSubmit);
     document.getElementById("paymentReminderCancel")
       ?.addEventListener("click", resetPaymentReminderForm);
+    document.getElementById("paymentReminderKind")
+      ?.addEventListener("change", updatePaymentReminderKindFields);
     document.getElementById("paymentReminderRecurring")
       ?.addEventListener("change", (event) => {
         document.getElementById("paymentReminderFrequencyWrap").hidden =

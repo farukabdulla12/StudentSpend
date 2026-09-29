@@ -238,7 +238,7 @@
           </article>
           <article class="panel">
             <div class="panel-head panel-head-row">
-              <div><h2>Upcoming Payment</h2><p id="dashboardPaymentSummary">No upcoming payments.</p></div>
+              <div><h2>Next Payment or Repayment</h2><p id="dashboardPaymentSummary">No upcoming payments or repayments.</p></div>
               <button class="link-btn-subtle" type="button" data-dashboard-page="payments">View payments</button>
             </div>
           </article>
@@ -462,16 +462,25 @@
         <div class="student-tools-grid">
           <article class="panel feature-panel-wide">
             <div class="panel-head">
-              <h2>Payment Reminders</h2>
-              <p>Track upcoming bills. Completing a reminder does not create a transaction.</p>
+              <h2>Payment &amp; Repayment Reminders</h2>
+              <p>Track bills you need to pay and money you have lent that you expect back. Completing a reminder does not create a transaction.</p>
             </div>
             <form id="paymentReminderForm" class="feature-form">
               <input type="hidden" id="paymentReminderId">
               <div class="feature-form-grid">
-                <label>Payment name<input id="paymentReminderName" type="text" maxlength="60" required placeholder="Mobile Recharge"></label>
+                <label>Reminder type
+                  <select id="paymentReminderKind">
+                    <option value="payment">Payment I need to make</option>
+                    <option value="repayment">Money I lent (expecting it back)</option>
+                  </select>
+                </label>
+                <label id="paymentReminderPersonWrap" hidden>Person who owes me
+                  <input id="paymentReminderPerson" type="text" maxlength="60" placeholder="Person's name">
+                </label>
+                <label id="paymentReminderNameLabel">Payment name<input id="paymentReminderName" type="text" maxlength="60" required placeholder="Mobile Recharge"></label>
                 <label>Amount (₹)<input id="paymentReminderAmount" type="number" min="0.01" step="0.01" required></label>
-                <label>Due date<input id="paymentReminderDate" type="date" required></label>
-                <label>Category
+                <label id="paymentReminderDateLabel">Due date<input id="paymentReminderDate" type="date" required></label>
+                <label id="paymentReminderCategoryWrap">Category
                   <select id="paymentReminderCategory">
                     <option>Mobile Recharge</option>
                     <option>Hostel Fee</option>
@@ -481,7 +490,7 @@
                     <option>Other</option>
                   </select>
                 </label>
-                <label class="reminder-recurring"><input id="paymentReminderRecurring" type="checkbox"> Recurring reminder</label>
+                <label class="reminder-recurring" id="paymentReminderRecurringWrap"><input id="paymentReminderRecurring" type="checkbox"> Recurring reminder</label>
                 <label id="paymentReminderFrequencyWrap" hidden>Repeat
                   <select id="paymentReminderFrequency">
                     <option value="monthly">Monthly</option>
