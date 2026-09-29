@@ -74,6 +74,34 @@ if (
 
 }
 
+function setupAuthStateListener() {
+    if (!supabaseClient || typeof supabaseClient.auth?.onAuthStateChange !== "function") {
+        return;
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        const isAuthPage = window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("/") || window.location.pathname.endsWith("reset-password.html") === false;
+
+        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) {
+            if (window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("/")) {
+                window.location.replace("dashboard.html");
+            }
+            return;
+        }
+
+        if ((event === "SIGNED_OUT" || event === "USER_DELETED") && window.location.pathname.endsWith("dashboard.html")) {
+            window.location.replace("index.html");
+            return;
+        }
+
+        if (event === "PASSWORD_RECOVERY" && window.location.pathname.endsWith("index.html")) {
+            window.location.replace("reset-password.html");
+        }
+    });
+}
+
+setupAuthStateListener();
+
 
 // ==========================================
 // CURRENT MODE
@@ -148,7 +176,6 @@ const verificationText =
 
 const backToLoginBtn =
     document.getElementById("backToLoginBtn");
-
 
 // ==========================================
 // LOGIN TAB

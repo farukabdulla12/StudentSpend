@@ -637,6 +637,69 @@ input:focus-visible {
     text-decoration: underline;
 }
 
+.auth-links {
+    margin-top: 18px;
+    text-align: center;
+}
+
+.auth-links a {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+.password-strength {
+    margin-top: 8px;
+}
+
+.password-strength-track {
+    height: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e4e4e7;
+}
+
+.password-strength-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--danger);
+    transition: width .2s, background-color .2s;
+}
+
+.password-strength-track span[data-strength="fair"] {
+    background: #f59e0b;
+}
+
+.password-strength-track span[data-strength="strong"] {
+    background: var(--success);
+}
+
+.password-strength > small {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.no-script-message {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #fff8e6;
+    color: #704b00;
+    text-align: center;
+}
+
 
 /* =========================================
    VERIFICATION MESSAGE

@@ -50,28 +50,45 @@ async function getCachedSessionUser() {
 }
 
 async function checkAuthentication() {
-  if (!connection.isOnline()) {
-    connection.showOffline();
-    return getCachedSessionUser();
+  if (!supabaseClient) {
+    window.location.replace("index.html");
+    return null;
   }
 
   try {
-    const {
-      data: { user },
-      error
-    } = await supabaseClient.auth.getUser();
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
 
-    if (error && connection.handleError(error)) {
-      return getCachedSessionUser();
+    if (error) {
+      if (connection.handleError(error)) {
+        return getCachedSessionUser();
+      }
+      console.error("Session check failed:", error);
+      window.location.replace("index.html");
+      return null;
     }
 
-    if (error || !user) {
-      window.location.href = "index.html";
+    if (!session?.user) {
+      window.location.replace("index.html");
+      return null;
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (userError) {
+      if (connection.handleError(userError)) {
+        return session.user;
+      }
+      console.error("User validation failed:", userError);
+      window.location.replace("index.html");
+      return null;
+    }
+
+    if (!user) {
+      window.location.replace("index.html");
       return null;
     }
 
     console.log("Authenticated:", user.email);
-
     return user;
 
   } catch (error) {
@@ -80,7 +97,7 @@ async function checkAuthentication() {
     }
 
     console.error("Authentication error:", error);
-    window.location.href = "index.html";
+    window.location.replace("index.html");
     return null;
   }
 }
@@ -1784,20 +1801,33 @@ async function checkAuthentication() {
   }
 
 
+  function clearCurrentUserStorage() {
+    if (!state.user?.id) {
+      return;
+    }
+
+    const prefix = "studentspend_" + state.user.id;
+    const keysToRemove = [];
+
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  }
+
   async function logoutUser() {
 
     openConfirm(
       "Are you sure you want to log out?",
       async function () {
 
-        if (!connection.isOnline()) {
-          connection.showOffline();
-          closeConfirm();
-          return;
-        }
-
         if (!supabaseClient) {
           closeConfirm();
+          clearCurrentUserStorage();
           window.location.replace("index.html");
           return;
         }
@@ -1817,10 +1847,7 @@ async function checkAuthentication() {
             console.warn("Could not clear session storage:", error);
           }
 
-          localStorage.removeItem("studentspend_guest_transactions");
-          localStorage.removeItem("studentspend_guest_settings");
-          localStorage.removeItem("studentspend_guest_profile");
-
+          clearCurrentUserStorage();
           window.location.replace("index.html");
         } catch (error) {
           if (connection.handleError(error)) {
@@ -2771,9 +2798,9 @@ async function checkAuthentication() {
     },
 
     about: {
-      title: "About StudentSpend",
+      title: "About & Help",
       desc:
-        "A simpler way to understand and manage your money"
+        "Learn how StudentSpend works and how to get the most from it"
     },
 
     profile: {
@@ -9088,72 +9115,22 @@ async function checkAuthentication() {
 
         try {
 
-          /*
-            1. Check Supabase login
-          */
-
-          const cachedUser =
-            await getCachedSessionUser();
-
-          let user;
-
-          if (cachedUser) {
-
-            state.user =
-              cachedUser;
-
-            const [authenticatedUser] =
-              await Promise.all([
-                connection.isOnline()
-                  ? checkAuthentication()
-                  : Promise.resolve(cachedUser),
-                loadCurrentProfile(),
-                loadStudentFeatures()
-              ]);
-
-            user =
-              authenticatedUser;
-
-          } else {
-
-            user =
-              await checkAuthentication();
-
-            if (!user) {
-              return;
-            }
-
-            state.user =
-              user;
-
-            await Promise.all([
-              loadCurrentProfile(),
-              loadStudentFeatures()
-            ]);
-          }
-
+          const user =
+            await checkAuthentication();
 
           if (!user) {
-
             return;
           }
 
+          state.user = user;
 
-          /*
-            2. Store current user
-          */
-
-          state.user =
-            user;
-
-
-          /*
-            3. Load user-specific data
-          */
+          await Promise.all([
+            loadCurrentProfile(),
+            loadStudentFeatures()
+          ]);
 
           state.transactions =
             Store.loadTransactions();
-
 
           state.settings = {
             ...DEFAULT_SETTINGS,

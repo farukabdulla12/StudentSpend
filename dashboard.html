@@ -89,7 +89,7 @@
       </button>
       <button class="nav-item" data-page="about" type="button">
         <span class="nav-icon" aria-hidden="true">&#8505;</span>
-        <span class="nav-label">About</span>
+        <span class="nav-label">About &amp; Help</span>
       </button>
     </nav>
 
@@ -684,69 +684,133 @@
       </section>
 
       <!-- ===== ABOUT PAGE ===== -->
-      <section class="page" id="page-about" aria-labelledby="aboutHeading">
-        <div class="about-page">
-          <article class="panel about-card">
-            <div class="about-card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 6.5h14a2 2 0 0 1 2 2v10H5a3 3 0 0 1-3-3v-11a2 2 0 0 1 2-2h14v4"/>
-                <path d="M20 11h-4a2 2 0 0 0 0 4h4"/>
-                <path d="M16 13h.01"/>
-              </svg>
+      <section class="page" id="page-about" aria-labelledby="aboutPageTitle">
+        <div class="about-help-shell">
+          <header class="panel about-hero">
+            <div class="about-hero-copy">
+              <p class="about-kicker">About &amp; Help</p>
+              <h1 id="aboutPageTitle">About StudentSpend</h1>
+              <p>StudentSpend helps students track income, spending, and goals with a clearer picture of their money — without complicated tools or extra friction.</p>
             </div>
-            <h2 id="aboutHeading">About StudentSpend</h2>
-            <p>StudentSpend is a simple finance management tool made for students. It helps you keep track of your income and daily expenses, manage your budget, and understand where your money goes.</p>
-          </article>
+            <div class="about-hero-pills" aria-label="StudentSpend highlights">
+              <span>Student finance</span>
+              <span>Offline ready</span>
+              <span>Secure access</span>
+            </div>
+          </header>
 
-          <article class="panel about-card">
-            <div class="about-card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"/>
-                <rect x="9" y="10.5" width="6" height="5.5" rx="1"/>
-                <path d="M10.5 10.5V9a1.5 1.5 0 0 1 3 0v1.5"/>
-              </svg>
-            </div>
-            <h2>Privacy &amp; Security</h2>
-            <p>Your financial information is kept securely and is linked to your account. We use secure authentication and access controls to help keep your data protected.</p>
-          </article>
+          <div class="about-feature-grid">
+            <article class="panel about-feature-card">
+              <div class="about-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12h18"/>
+                  <path d="M12 3v18"/>
+                  <circle cx="12" cy="12" r="8"/>
+                </svg>
+              </div>
+              <h2>Track your money</h2>
+              <p>Log income and expenses, review your balance, and spot spending patterns in a simple daily dashboard.</p>
+            </article>
 
-          <article class="panel about-card">
-            <div class="about-card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 16.2A4.5 4.5 0 0 0 18 7.5h-1.2A6 6 0 0 0 5.4 9.3 4 4 0 0 0 6 17h5"/>
-                <path d="M16 19l2 2 2-2"/>
-                <path d="M18 15v6"/>
-                <path d="M8 5.5 9 4"/>
-              </svg>
-            </div>
-            <h2>Cloud Sync</h2>
-            <p>Your data can be synced to the cloud when you are connected to the internet. This helps you access your saved information when you sign in from another device.</p>
-          </article>
+            <article class="panel about-feature-card">
+              <div class="about-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12.5 9 18l12-12"/>
+                </svg>
+              </div>
+              <h2>Stay on budget</h2>
+              <p>Set monthly targets, compare actual spending, and use alerts to help keep yourself within your plan.</p>
+            </article>
 
-          <article class="panel about-card">
-            <div class="about-card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9a14 14 0 0 1 11.5-2.8"/>
-                <path d="M1 5a20 20 0 0 1 8.5-3"/>
-                <path d="M6 13a8 8 0 0 1 3-1.8"/>
-                <path d="M12 18h7a3 3 0 0 0 .5-6 5.5 5.5 0 0 0-9.6-1.7"/>
-                <path d="m2 2 20 20"/>
-              </svg>
-            </div>
-            <h2>Offline Mode</h2>
-            <p>No internet? No problem. You can still add and manage your transactions offline. Your data can be synced once you are back online.</p>
-          </article>
+            <article class="panel about-feature-card">
+              <div class="about-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2v20"/>
+                  <path d="m6 7 6-5 6 5"/>
+                  <path d="m6 17 6 5 6-5"/>
+                </svg>
+              </div>
+              <h2>Build smart habits</h2>
+              <p>Use savings goals, monthly summaries, and spending insights to make better choices with your budget.</p>
+            </article>
 
-          <article class="panel about-card">
-            <div class="about-card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="5" width="18" height="14" rx="2"/>
-                <path d="m3 7 9 6 9-6"/>
-              </svg>
-            </div>
-            <h2>Contact &amp; Support</h2>
-            <p>Have a question, found something that isn't working, or want to share feedback? You can reach us at <a class="about-email" href="mailto:studentspend.care@gmail.com">studentspend.care@gmail.com</a>. We&rsquo;d be happy to hear from you.</p>
-          </article>
+            <article class="panel about-feature-card">
+              <div class="about-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"/>
+                  <path d="M9.5 12.5 11 14l3.5-4"/>
+                </svg>
+              </div>
+              <h2>Keep things secure</h2>
+              <p>Your account is protected with secure sign-in and controlled access, while your local data stays available offline.</p>
+            </article>
+          </div>
+
+          <div class="about-accordion-stack">
+            <details class="panel about-accordion" open>
+              <summary>
+                <span>How StudentSpend works</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <ol>
+                  <li>Add your income and expenses as they happen.</li>
+                  <li>Review your dashboard for balance, monthly spending, and budget health.</li>
+                  <li>Use reports, savings goals, and reminders to stay ahead of upcoming costs.</li>
+                </ol>
+              </div>
+            </details>
+
+            <details class="panel about-accordion">
+              <summary>
+                <span>Privacy &amp; security</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <p>StudentSpend is designed to keep your personal finance records organized and private. Your account is protected through secure authentication, and your local records remain stored on the device unless you choose to sync them through your connected account.</p>
+              </div>
+            </details>
+
+            <details class="panel about-accordion">
+              <summary>
+                <span>Using the dashboard</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <p>Start with the overview cards to understand your financial position, then use the sections below for transactions, goals, reports, and reminders. The dashboard is built to keep the most important information visible first.</p>
+              </div>
+            </details>
+
+            <details class="panel about-accordion">
+              <summary>
+                <span>Offline access &amp; sync</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <p>When you are offline, you can still add and manage transactions locally. Once your connection is restored, the app can sync your data in the background so your information remains available across sessions.</p>
+              </div>
+            </details>
+
+            <details class="panel about-accordion">
+              <summary>
+                <span>Disclaimer</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <p>StudentSpend is a personal budgeting and tracking tool. It helps you organize spending and monitor trends, but it does not replace professional financial advice or formal budgeting services.</p>
+              </div>
+            </details>
+
+            <details class="panel about-accordion">
+              <summary>
+                <span>Contact &amp; support</span>
+                <span class="accordion-caret" aria-hidden="true">›</span>
+              </summary>
+              <div class="about-accordion-content">
+                <p>Need help or want to share feedback? Email us at <a class="about-email" href="mailto:studentspend.care@gmail.com">studentspend.care@gmail.com</a>.</p>
+              </div>
+            </details>
+          </div>
         </div>
       </section>
 
@@ -942,6 +1006,13 @@
       </section>
 
     </main>
+
+    <footer class="dashboard-footer" aria-label="Developer credit">
+      <p class="dashboard-credit">
+        © 2026 StudentSpend. Developed by
+        <a class="developer-link" href="YOUR_PROFILE_LINK" target="_blank" rel="noopener noreferrer">Faruk Abdulla</a>
+      </p>
+    </footer>
   </div>
 </div>
 
