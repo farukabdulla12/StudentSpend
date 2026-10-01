@@ -7,6 +7,8 @@ let supabaseClient = null;
 const connection =
     window.StudentSpendConnection;
 const SIGNUP_COOLDOWN_MS = 5000;
+const GENERIC_SIGNUP_ERROR =
+    "Unable to create your account. Please check your details and try again.";
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
     "10minutemail.com",
     "10minutemail.co.uk",
@@ -500,7 +502,7 @@ async function registerUser(
 
     if (error) {
         if (error.message && error.message.toLowerCase().includes("already registered")) {
-            throw new Error("An account with this email already exists. Please log in.");
+            throw new Error(GENERIC_SIGNUP_ERROR);
         }
 
         throw error;
@@ -797,7 +799,9 @@ function getFriendlyError(error) {
         )
     ) {
 
-        return "Please verify your email first. Check your inbox.";
+        return currentMode === "register"
+            ? GENERIC_SIGNUP_ERROR
+            : "Incorrect email or password.";
 
     }
 
@@ -814,7 +818,7 @@ function getFriendlyError(error) {
         )
     ) {
 
-        return "An account with this email already exists. Please log in.";
+        return GENERIC_SIGNUP_ERROR;
 
     }
 
@@ -876,8 +880,9 @@ function getFriendlyError(error) {
     }
 
 
-    return message ||
-        "Something went wrong. Please try again.";
+    return currentMode === "register"
+        ? GENERIC_SIGNUP_ERROR
+        : "Something went wrong. Please try again.";
 
 }
 

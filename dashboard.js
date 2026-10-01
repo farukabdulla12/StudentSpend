@@ -1801,22 +1801,24 @@ async function checkAuthentication() {
   }
 
 
-  function clearCurrentUserStorage() {
-    if (!state.user?.id) {
-      return;
-    }
-
-    const prefix = "studentspend_" + state.user.id;
-    const keysToRemove = [];
-
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(prefix)) {
-        keysToRemove.push(key);
-      }
-    }
-
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  function clearCurrentUserMemory() {
+    state.user = null;
+    state.transactions = [];
+    state.profile = {
+      name: "",
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      age: "",
+      phone: ""
+    };
+    state.settings = { ...DEFAULT_SETTINGS };
+    state.studentFeatures = {
+      ...DEFAULT_STUDENT_FEATURES,
+      categoryBudgets: {},
+      savingsGoals: [],
+      paymentReminders: []
+    };
   }
 
   async function logoutUser() {
@@ -1827,7 +1829,7 @@ async function checkAuthentication() {
 
         if (!supabaseClient) {
           closeConfirm();
-          clearCurrentUserStorage();
+          clearCurrentUserMemory();
           window.location.replace("index.html");
           return;
         }
@@ -1847,7 +1849,7 @@ async function checkAuthentication() {
             console.warn("Could not clear session storage:", error);
           }
 
-          clearCurrentUserStorage();
+          clearCurrentUserMemory();
           window.location.replace("index.html");
         } catch (error) {
           if (connection.handleError(error)) {
