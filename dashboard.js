@@ -4368,7 +4368,7 @@ async function checkAuthentication() {
 
   const donutAnimationFrames = new WeakMap();
 
-  function renderDonutChart() {
+  function renderDonutChart(animate = false) {
 
     drawDonut(
       "donutChart",
@@ -4379,8 +4379,47 @@ async function checkAuthentication() {
           state.viewMonth
         ),
         "expense"
-      )
+      ),
+      animate
     );
+  }
+
+  function observeDashboardPanels() {
+    const panels = document.querySelectorAll(
+      "#page-dashboard .panel"
+    );
+
+    if (
+      !panels.length ||
+      !("IntersectionObserver" in window) ||
+      isReducedMotion()
+    ) {
+      return;
+    }
+
+    panels.forEach((panel) => {
+      panel.classList.add("is-observed");
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+
+          if (entry.target.classList.contains("panel-donut")) {
+            renderDonutChart(true);
+          }
+        } else {
+          entry.target.classList.remove("is-visible");
+        }
+      });
+    }, {
+      threshold: 0.12
+    });
+
+    panels.forEach((panel) => {
+      observer.observe(panel);
+    });
   }
 
 
@@ -9213,6 +9252,7 @@ async function checkAuthentication() {
           */
 
           wireEvents();
+          observeDashboardPanels();
           /* Load reminder controls */
           renderReminderSettings();
 
