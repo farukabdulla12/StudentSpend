@@ -132,11 +132,32 @@ async function checkAuthentication() {
 
   const DEFAULT_STUDENT_FEATURES = {
     studentMode: "",
+    customStudentType: "",
     categoryBudgets: {},
     savingsGoals: [],
     paymentReminders: [],
     challenge: null
   };
+
+  const STUDENT_TYPE_OPTIONS = [
+    { value: "undergraduate", label: "Undergraduate Student" },
+    { value: "postgraduate", label: "Postgraduate Student" },
+    { value: "diploma", label: "Diploma Student" },
+    { value: "research", label: "PhD / Research Student" },
+    { value: "engineering", label: "Engineering Student" },
+    { value: "college", label: "College Student" },
+    {
+      value: "hostel",
+      label: "Hostel Student",
+      recommendedCategories: ["Mess/Food", "Snacks", "Hostel", "Transport", "Recharge", "College", "Entertainment", "Money From Home"]
+    },
+    {
+      value: "day-scholar",
+      label: "Day Scholar",
+      recommendedCategories: ["Bus/Fuel", "Food", "College", "Recharge", "Entertainment", "Study Materials", "Other"]
+    },
+    { value: "other", label: "Other" }
+  ];
 
 
   const EXPENSE_CATEGORIES = [
@@ -349,9 +370,14 @@ async function checkAuthentication() {
 
     return {
       ...DEFAULT_STUDENT_FEATURES,
-      studentMode: ["hostel", "day-scholar"].includes(source.studentMode)
-        ? source.studentMode
-        : "",
+      studentMode:
+        typeof source.studentMode === "string"
+          ? source.studentMode.trim().slice(0, 60)
+          : "",
+      customStudentType:
+        typeof source.customStudentType === "string"
+          ? normalizeProfileName(source.customStudentType).slice(0, 60)
+          : "",
       categoryBudgets,
       savingsGoals,
       paymentReminders,
@@ -380,6 +406,37 @@ async function checkAuthentication() {
 
     studentFeaturesPendingKey() {
       return this.studentFeaturesKey() + "_pending_sync";
+    },
+
+    notificationReadKey() {
+      return getUserStoragePrefix() + "_notification_read";
+    },
+
+    loadNotificationReadIds() {
+      try {
+        const parsed = JSON.parse(
+          localStorage.getItem(this.notificationReadKey()) || "[]"
+        );
+        return Array.isArray(parsed)
+          ? parsed.filter((id) => typeof id === "string").slice(-200)
+          : [];
+      } catch (error) {
+        console.error("Notification read-state load error:", error);
+        return [];
+      }
+    },
+
+    saveNotificationReadIds(ids) {
+      try {
+        localStorage.setItem(
+          this.notificationReadKey(),
+          JSON.stringify(ids.filter((id) => typeof id === "string").slice(-200))
+        );
+        return true;
+      } catch (error) {
+        console.error("Notification read-state save error:", error);
+        return false;
+      }
     },
 
     hasPendingStudentFeaturesSync() {
@@ -526,6 +583,8 @@ async function checkAuthentication() {
           this.settingsKey(),
           JSON.stringify(settings)
         );
+
+        renderNotificationPanel();
 
       } catch (error) {
 
@@ -892,6 +951,8 @@ async function checkAuthentication() {
       return false;
     }
 
+    renderNotificationPanel();
+
     if (!connection.isOnline()) {
       Store.setPendingStudentFeaturesSync(true);
       return true;
@@ -1186,19 +1247,36 @@ async function checkAuthentication() {
      PROFILE
   ======================================================= */
 
+  function normalizeProfileName(value) {
+    return String(value || "")
+      .replace(/[^A-Za-z]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
+  }
+
+  function normalizeProfileNameInput(value) {
+    const raw = String(value || "");
+    const keepTrailingSpace = /[\s\d\W]$/.test(raw);
+    const formatted = normalizeProfileName(raw);
+    return keepTrailingSpace && formatted ? `${formatted} ` : formatted;
+  }
+
   function getProfileNameParts() {
 
     const firstName =
       typeof state.profile.firstName === "string"
-        ? state.profile.firstName.trim()
+        ? normalizeProfileName(state.profile.firstName)
         : "";
     const middleName =
       typeof state.profile.middleName === "string"
-        ? state.profile.middleName.trim()
+        ? normalizeProfileName(state.profile.middleName)
         : "";
     const lastName =
       typeof state.profile.lastName === "string"
-        ? state.profile.lastName.trim()
+        ? normalizeProfileName(state.profile.lastName)
         : "";
 
     if (firstName || middleName || lastName) {
@@ -1206,9 +1284,7 @@ async function checkAuthentication() {
     }
 
     const legacyParts =
-      typeof state.profile.name === "string"
-        ? state.profile.name.trim().split(/\s+/).filter(Boolean)
-        : [];
+      normalizeProfileName(state.profile.name).split(/\s+/).filter(Boolean);
 
     if (legacyParts.length >= 3) {
       return {
@@ -1225,6 +1301,20 @@ async function checkAuthentication() {
     };
   }
 
+  function normalizeSavedProfileName() {
+    const parts = getProfileNameParts();
+    state.profile = {
+      ...state.profile,
+      firstName: parts.firstName,
+      middleName: parts.middleName,
+      lastName: parts.lastName,
+      name: [parts.firstName, parts.middleName, parts.lastName]
+        .filter(Boolean)
+        .join(" ")
+    };
+    return parts;
+  }
+
 
   function getProfileFullName() {
 
@@ -1233,7 +1323,11 @@ async function checkAuthentication() {
 
     return [firstName, middleName, lastName]
       .filter(Boolean)
-      .join(" ") || state.profile.name || "";
+      .join(" ");
+  }
+
+  function formatProfileNameForGreeting(name) {
+    return normalizeProfileName(name);
   }
 
 
@@ -1254,6 +1348,8 @@ async function checkAuthentication() {
 
       state.profile =
         Store.loadProfile();
+      let remoteProfileName = null;
+      let profileRecord = null;
 
       /*
         If local profile is empty but Supabase
@@ -1298,7 +1394,6 @@ async function checkAuthentication() {
       }
 
       if (connection.isOnline()) {
-        let profileRecord = null;
         let profileLoadError = null;
 
         try {
@@ -1332,6 +1427,10 @@ async function checkAuthentication() {
             "error"
           );
         } else if (profileRecord) {
+          remoteProfileName =
+            typeof profileRecord.name === "string"
+              ? profileRecord.name
+              : "";
           state.profile = {
             ...state.profile,
             name: profileRecord.name || "",
@@ -1344,8 +1443,57 @@ async function checkAuthentication() {
         }
       }
 
-      const profileNameParts =
-        getProfileNameParts();
+      const profileNameParts = normalizeSavedProfileName();
+      const cleanedProfileName = state.profile.name;
+      if (!Store.saveProfile(state.profile)) {
+        showToast(
+          "Your cleaned profile name could not be saved on this device.",
+          "warning"
+        );
+      }
+
+      if (
+        remoteProfileName !== null &&
+        remoteProfileName !== cleanedProfileName &&
+        connection.isOnline()
+      ) {
+        try {
+          const { data: cleanedProfile, error: cleanupError } =
+            await supabaseClient
+              .from("profiles")
+              .update({
+                name: cleanedProfileName,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", user.id)
+              .select("id, name")
+              .maybeSingle();
+
+          if (cleanupError) {
+            throw cleanupError;
+          }
+
+          if (
+            !cleanedProfile ||
+            cleanedProfile.id !== user.id ||
+            cleanedProfile.name !== cleanedProfileName
+          ) {
+            console.error("Supabase did not confirm the cleaned profile name.");
+            showToast(
+              "Your profile name was cleaned on this device but could not be confirmed in Supabase.",
+              "warning"
+            );
+          }
+        } catch (error) {
+          if (!connection.handleError(error)) {
+            console.error("Supabase profile name cleanup failed:", error);
+            showToast(
+              "Your profile name was cleaned on this device but could not be saved to Supabase.",
+              "warning"
+            );
+          }
+        }
+      }
 
 
       const email =
@@ -1565,14 +1713,20 @@ async function checkAuthentication() {
       document.getElementById(
         "profilePhone"
       );
+    const customStudentTypeInput =
+      document.getElementById("profileCustomStudentType");
 
 
     const firstName =
-      firstNameInput?.value.trim() || "";
+      normalizeProfileName(firstNameInput?.value);
     const middleName =
-      middleNameInput?.value.trim() || "";
+      normalizeProfileName(middleNameInput?.value);
     const lastName =
-      lastNameInput?.value.trim() || "";
+      normalizeProfileName(lastNameInput?.value);
+
+    if (firstNameInput) firstNameInput.value = firstName;
+    if (middleNameInput) middleNameInput.value = middleName;
+    if (lastNameInput) lastNameInput.value = lastName;
     const name =
       [firstName, middleName, lastName]
         .filter(Boolean)
@@ -1662,6 +1816,17 @@ async function checkAuthentication() {
     };
     const studentMode =
       document.getElementById("profileStudentMode")?.value || "";
+    const customStudentType =
+      normalizeProfileName(customStudentTypeInput?.value).slice(0, 60);
+
+    if (customStudentTypeInput) {
+      customStudentTypeInput.value = customStudentType;
+    }
+    if (studentMode === "other" && !customStudentType) {
+      showToast("Please enter your student type.", "error");
+      customStudentTypeInput?.focus();
+      return;
+    }
 
     if (saveButton) {
       saveButton.dataset.loading = "true";
@@ -1729,11 +1894,9 @@ async function checkAuthentication() {
 
       Store.saveProfile(state.profile);
       state.studentFeatures.studentMode = studentMode;
-      const studentModeInput =
-        document.getElementById("studentMode");
-      if (studentModeInput) {
-        studentModeInput.value = studentMode;
-      }
+      state.studentFeatures.customStudentType = customStudentType;
+      updateCustomStudentTypeVisibility();
+      renderStudentMode();
       await persistStudentFeatures();
     } catch (error) {
       if (connection.handleError(error)) {
@@ -1936,9 +2099,17 @@ async function checkAuthentication() {
     const studentModeInput =
       document.getElementById("profileStudentMode");
     if (studentModeInput) {
+      populateStudentTypeOptions(studentModeInput);
       studentModeInput.value =
         state.studentFeatures.studentMode;
     }
+    const customStudentTypeInput =
+      document.getElementById("profileCustomStudentType");
+    if (customStudentTypeInput) {
+      customStudentTypeInput.value =
+        state.studentFeatures.customStudentType;
+    }
+    updateCustomStudentTypeVisibility();
 
 
     if (emailInput) {
@@ -2914,10 +3085,167 @@ async function checkAuthentication() {
       );
   }
 
+  function buildNotifications() {
+    const notifications = [];
+    const today = todayISO();
+
+    state.studentFeatures.paymentReminders
+      .filter((reminder) => !reminder.completed)
+      .forEach((reminder) => {
+        const dueDate = String(reminder.dueDate || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return;
+        const [year, month, day] = dueDate.split("-").map(Number);
+        const [todayYear, todayMonth, todayDay] = today.split("-").map(Number);
+        const daysUntilDue = Math.round(
+          (Date.UTC(year, month - 1, day) -
+            Date.UTC(todayYear, todayMonth - 1, todayDay)) /
+            86400000
+        );
+        if (daysUntilDue > 7) return;
+
+        const overdue = daysUntilDue < 0;
+        const dueText = overdue
+          ? `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) === 1 ? "" : "s"} overdue`
+          : daysUntilDue === 0
+            ? "Due today"
+            : `Due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`;
+        const displayName = reminder.kind === "repayment"
+          ? reminder.personName || reminder.name
+          : reminder.name;
+        notifications.push({
+          id: `payment:${reminder.id}:${dueDate}`,
+          title: reminder.kind === "repayment" ? "Upcoming repayment" : "Upcoming payment",
+          message: `${displayName} · ${formatCurrency(reminder.amount)} · ${dueText}`,
+          icon: reminder.kind === "repayment" ? "↗" : "₹",
+          tone: overdue ? "danger" : daysUntilDue <= 2 ? "warning" : "info",
+          page: "payments",
+          priority: overdue ? 0 : 1,
+          sortDate: dueDate
+        });
+      });
+
+    const monthId = monthKey(new Date());
+    getSmartBudgetMessages().forEach((message) => {
+      if (message.type === "good") return;
+      if (message.text.startsWith("Today's spending")) {
+        notifications.push({
+          id: `spending:${today}`,
+          title: "Spending alert",
+          message: message.text,
+          icon: "↗",
+          tone: message.type,
+          page: "transactions",
+          priority: 4
+        });
+      } else if (message.text.toLowerCase().includes("budget")) {
+        notifications.push({
+          id: `budget:${monthId}:${message.text}`,
+          title: message.type === "danger" ? "Budget limit reached" : "Budget warning",
+          message: message.text,
+          icon: "!",
+          tone: message.type,
+          page: "budget",
+          priority: message.type === "danger" ? 2 : 3
+        });
+      }
+    });
+
+    state.studentFeatures.savingsGoals.forEach((goal) => {
+      const target = Number(goal.target);
+      const saved = Number(goal.saved);
+      if (target <= 0 || saved <= 0) return;
+      const percent = Math.min(100, Math.max(0, saved / target * 100));
+      const milestone = percent >= 100 ? 100 : Math.floor(percent / 25) * 25;
+      notifications.push({
+        id: `savings:${goal.id}:${milestone || "started"}`,
+        title: percent >= 100 ? "Savings goal reached" : "Savings goal progress",
+        message: `${goal.name} · ${Math.round(percent)}% saved (${formatCurrency(saved)} of ${formatCurrency(target)})`,
+        icon: percent >= 100 ? "✓" : "◎",
+        tone: percent >= 100 ? "good" : "info",
+        page: "savings",
+        priority: 5
+      });
+    });
+
+    const currentMonthTransactions = txForMonth(new Date());
+    const monthlyIncome = sumByType(currentMonthTransactions, "income");
+    const monthlyExpense = sumByType(currentMonthTransactions, "expense");
+    notifications.push({
+      id: `monthly-summary:${monthId}`,
+      title: "Monthly summary",
+      message: `${formatMonthLabel(new Date())} · ${currentMonthTransactions.length} transaction${currentMonthTransactions.length === 1 ? "" : "s"} · ${formatCurrency(monthlyIncome)} income · ${formatCurrency(monthlyExpense)} expenses`,
+      icon: "Σ",
+      tone: "info",
+      page: "reports",
+      priority: 6
+    });
+
+    return notifications.sort((a, b) =>
+      a.priority - b.priority ||
+      String(a.sortDate || "").localeCompare(String(b.sortDate || "")) ||
+      a.title.localeCompare(b.title)
+    );
+  }
+
+  function renderNotificationPanel() {
+    const toggle = document.getElementById("notificationToggle");
+    const badge = document.getElementById("notificationBadge");
+    const summary = document.getElementById("notificationUnreadSummary");
+    const list = document.getElementById("notificationList");
+    if (!toggle || !badge || !summary || !list) return;
+
+    const notifications = buildNotifications();
+    const readIds = new Set(Store.loadNotificationReadIds());
+    const unreadCount = notifications.reduce(
+      (count, notification) => count + (readIds.has(notification.id) ? 0 : 1),
+      0
+    );
+
+    badge.hidden = unreadCount === 0;
+    badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+    toggle.setAttribute(
+      "aria-label",
+      unreadCount
+        ? `Open notifications, ${unreadCount} unread`
+        : "Open notifications"
+    );
+    summary.textContent = unreadCount
+      ? `${unreadCount} unread · ${notifications.length} total`
+      : "You’re all caught up.";
+
+    list.innerHTML = notifications.length
+      ? notifications.map((notification) => `
+          <li>
+            <button
+              class="notification-item${readIds.has(notification.id) ? "" : " is-unread"}"
+              type="button"
+              data-notification-id="${escapeHtml(notification.id)}"
+              data-notification-page="${escapeHtml(notification.page)}"
+            >
+              <span class="notification-item-icon is-${escapeHtml(notification.tone)}" aria-hidden="true">${escapeHtml(notification.icon)}</span>
+              <span class="notification-item-copy">
+                <span class="notification-item-title">${escapeHtml(notification.title)}</span>
+                <span class="notification-item-message">${escapeHtml(notification.message)}</span>
+              </span>
+            </button>
+          </li>
+        `).join("")
+      : '<li class="notification-empty">You’re all caught up.</li>';
+  }
+
+  function setNotificationDropdownOpen(isOpen) {
+    const toggle = document.getElementById("notificationToggle");
+    const dropdown = document.getElementById("notificationDropdown");
+    if (!toggle || !dropdown) return;
+    dropdown.hidden = !isOpen;
+    toggle.setAttribute("aria-expanded", String(isOpen));
+  }
+
 
   function renderCurrentPage() {
 
     updateNavBadge();
+    renderNotificationPanel();
 
 
     if (
@@ -3003,9 +3331,10 @@ async function checkAuthentication() {
     const greeting =
       document.getElementById("dashboardGreeting");
     if (greeting) {
+      const fullName = getProfileFullName();
       greeting.textContent =
-        getProfileFullName()
-          ? `Welcome back, ${getProfileFullName()}`
+        fullName
+          ? `Welcome back, ${formatProfileNameForGreeting(fullName)}`
           : "Welcome back";
     }
 
@@ -3137,6 +3466,7 @@ async function checkAuthentication() {
     );
 
     renderRecentList();
+    renderNotificationPanel();
   }
 
   function renderDailySpendingLimit() {
@@ -3249,21 +3579,7 @@ async function checkAuthentication() {
     }
 
     const goals = state.studentFeatures.savingsGoals;
-    const savingsSummary =
-      document.getElementById("dashboardSavingsSummary");
-    const savingsProgress =
-      document.getElementById("dashboardSavingsProgress");
-    if (savingsSummary) {
-      savingsSummary.textContent = goals.length
-        ? `${goals.length} goal${goals.length === 1 ? "" : "s"} · ${formatCurrency(goals.reduce((sum, goal) => sum + goal.saved, 0))} saved`
-        : "No savings goals yet.";
-    }
-    if (savingsProgress) {
-      const nextGoal = goals.find((goal) => goal.saved < goal.target);
-      savingsProgress.innerHTML = nextGoal
-        ? `<div class="goal-progress-label"><span>${escapeHtml(nextGoal.name)}</span><span>${Math.round(Math.min(100, nextGoal.saved / nextGoal.target * 100))}%</span></div><div class="goal-progress-track"><span style="width:${Math.min(100, nextGoal.saved / nextGoal.target * 100)}%"></span></div>`
-        : "";
-    }
+    renderDashboardSavingsGoals();
 
     const nextReminder =
       state.studentFeatures.paymentReminders
@@ -3321,6 +3637,53 @@ async function checkAuthentication() {
         }
       }
     }
+  }
+
+  function renderDashboardSavingsGoals() {
+    const progress = document.getElementById("dashboardSavingsProgress");
+    const goals = state.studentFeatures.savingsGoals;
+    const summary = document.getElementById("dashboardSavingsSummary");
+    if (summary) {
+      summary.textContent = goals.length
+        ? `${goals.length} goal${goals.length === 1 ? "" : "s"} · ${formatCurrency(goals.reduce((sum, goal) => sum + goal.saved, 0))} saved`
+        : "No savings goals yet.";
+    }
+    if (!progress) return;
+
+    progress.innerHTML = goals.length
+      ? goals.map((goal) => {
+          const target = Number(goal.target);
+          const saved = Number(goal.saved);
+          const percent = target > 0
+            ? Math.min(100, Math.max(0, saved / target * 100))
+            : 0;
+          const remaining = Math.max(0, target - saved);
+
+          return `
+            <article class="dashboard-savings-goal">
+              <div class="dashboard-savings-goal-heading">
+                <h3>${escapeHtml(goal.name)}</h3>
+                <strong>${Math.round(percent)}%</strong>
+              </div>
+              <div class="dashboard-savings-goal-amounts">
+                <span>${formatCurrency(saved)} saved</span>
+                <span>of ${formatCurrency(target)}</span>
+              </div>
+              <div
+                class="goal-progress-track"
+                role="progressbar"
+                aria-label="${escapeHtml(goal.name)} savings progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="${Math.round(percent)}"
+              >
+                <span style="width:${percent}%"></span>
+              </div>
+              <p>${formatCurrency(remaining)} remaining</p>
+            </article>
+          `;
+        }).join("")
+      : '<div class="feature-empty">No savings goals yet.</div>';
   }
 
   function renderBudgetPanel(
@@ -3507,6 +3870,7 @@ async function checkAuthentication() {
     renderCategoryBudgets();
     renderSmartBudgetAlerts();
     renderSavingsGoals();
+    renderDashboardSavingsGoals();
     renderExpenseCalendar();
     renderNoSpendChallenge();
     renderPaymentReminders();
@@ -3576,24 +3940,56 @@ async function checkAuthentication() {
     const recommendations =
       document.getElementById("studentModeRecommendations");
     if (select) {
+      populateStudentTypeOptions(select);
       select.value = state.studentFeatures.studentMode;
     }
     const profileSelect =
       document.getElementById("profileStudentMode");
     if (profileSelect) {
+      populateStudentTypeOptions(profileSelect);
       profileSelect.value = state.studentFeatures.studentMode;
     }
+    updateCustomStudentTypeVisibility();
     if (!recommendations) return;
 
-    const categories =
-      state.studentFeatures.studentMode === "hostel"
-        ? ["Mess/Food", "Snacks", "Hostel", "Transport", "Recharge", "College", "Entertainment", "Money From Home"]
-        : state.studentFeatures.studentMode === "day-scholar"
-          ? ["Bus/Fuel", "Food", "College", "Recharge", "Entertainment", "Study Materials", "Other"]
-          : [];
+    const selectedType = STUDENT_TYPE_OPTIONS.find(
+      (option) => option.value === state.studentFeatures.studentMode
+    );
+    const categories = selectedType?.recommendedCategories || [];
     recommendations.textContent = categories.length
       ? `Recommended categories: ${categories.join(" · ")}. All existing categories remain available when recording transactions.`
-      : "Choose Hostel Student or Day Scholar to see category recommendations.";
+      : "No student-specific category recommendations are configured for this type.";
+  }
+
+  function updateCustomStudentTypeVisibility() {
+    const field = document.getElementById("profileCustomStudentTypeField");
+    const select = document.getElementById("profileStudentMode");
+    if (field && select) {
+      field.hidden = select.value !== "other";
+    }
+  }
+
+  function populateStudentTypeOptions(select) {
+    const selectedMode = state.studentFeatures.studentMode;
+    const options = [
+      { value: "", label: "Choose a student type" },
+      ...STUDENT_TYPE_OPTIONS
+    ];
+    if (
+      selectedMode &&
+      !STUDENT_TYPE_OPTIONS.some((option) => option.value === selectedMode)
+    ) {
+      options.push({ value: selectedMode, label: selectedMode });
+    }
+
+    select.replaceChildren(
+      ...options.map(({ value, label }) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        return option;
+      })
+    );
   }
 
   function renderHomeMoney(transactions = moneyFromHomeTransactions(state.transactions)) {
@@ -4400,6 +4796,8 @@ async function checkAuthentication() {
     panels.forEach((panel) => {
       panel.classList.add("is-observed");
     });
+
+    panels[0].getBoundingClientRect();
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -5637,13 +6035,12 @@ async function checkAuthentication() {
       type === "income"
         ? INCOME_CATEGORIES
         : EXPENSE_CATEGORIES;
+    const selectedStudentType = STUDENT_TYPE_OPTIONS.find(
+      (option) => option.value === state.studentFeatures.studentMode
+    );
     const recommendedNames =
       type === "expense"
-        ? state.studentFeatures.studentMode === "hostel"
-          ? ["Mess/Food", "Snacks", "Hostel", "Transport", "Recharge", "College", "Entertainment"]
-          : state.studentFeatures.studentMode === "day-scholar"
-            ? ["Bus/Fuel", "Food", "College", "Recharge", "Entertainment", "Study Materials", "Other"]
-            : []
+        ? selectedStudentType?.recommendedCategories || []
         : ["Money From Home"];
     const recommendedCategories = recommendedNames.map((name) => ({
       name,
@@ -8169,6 +8566,59 @@ async function checkAuthentication() {
 
     wireStudentToolEvents();
 
+    const notificationMenu =
+      document.getElementById("notificationMenu");
+    document
+      .getElementById("notificationToggle")
+      ?.addEventListener("click", () => {
+        const dropdown =
+          document.getElementById("notificationDropdown");
+        setNotificationDropdownOpen(Boolean(dropdown?.hidden));
+      });
+
+    document
+      .getElementById("markNotificationsRead")
+      ?.addEventListener("click", () => {
+        const readIds = new Set(Store.loadNotificationReadIds());
+        buildNotifications().forEach((notification) =>
+          readIds.add(notification.id));
+        Store.saveNotificationReadIds([...readIds]);
+        renderNotificationPanel();
+      });
+
+    document
+      .getElementById("notificationList")
+      ?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const notificationButton =
+          target.closest("[data-notification-id]");
+        if (!notificationButton) return;
+
+        const readIds = new Set(Store.loadNotificationReadIds());
+        readIds.add(notificationButton.dataset.notificationId);
+        Store.saveNotificationReadIds([...readIds]);
+        renderNotificationPanel();
+        setNotificationDropdownOpen(false);
+        switchPage(notificationButton.dataset.notificationPage);
+      });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (
+        notificationMenu &&
+        event.target instanceof Node &&
+        !notificationMenu.contains(event.target)
+      ) {
+        setNotificationDropdownOpen(false);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setNotificationDropdownOpen(false);
+      }
+    });
+
     /* Navigation */
 
     document
@@ -8199,6 +8649,52 @@ async function checkAuthentication() {
         "submit",
         saveProfile
       );
+
+    document
+      .getElementById("profileStudentMode")
+      ?.addEventListener("change", updateCustomStudentTypeVisibility);
+
+    document
+      .getElementById("profileCustomStudentType")
+      ?.addEventListener("input", (event) => {
+        const input = event.currentTarget;
+        const cursor = input.selectionStart;
+        const normalizedValue =
+          normalizeProfileNameInput(input.value).slice(0, 60);
+        if (input.value === normalizedValue) {
+          return;
+        }
+
+        const normalizedBeforeCursor =
+          normalizeProfileNameInput(input.value.slice(0, cursor)).slice(0, 60);
+        input.value = normalizedValue;
+        const nextCursor = Math.min(
+          normalizedBeforeCursor.length,
+          normalizedValue.length
+        );
+        input.setSelectionRange(nextCursor, nextCursor);
+      });
+
+    ["profileFirstName", "profileMiddleName", "profileLastName"]
+      .forEach((id) => {
+        const input = document.getElementById(id);
+        input?.addEventListener("input", () => {
+          const cursor = input.selectionStart;
+          const normalizedValue = normalizeProfileNameInput(input.value);
+          if (input.value === normalizedValue) {
+            return;
+          }
+
+          const normalizedBeforeCursor =
+            normalizeProfileNameInput(input.value.slice(0, cursor));
+          input.value = normalizedValue;
+          const nextCursor = Math.min(
+            normalizedBeforeCursor.length,
+            normalizedValue.length
+          );
+          input.setSelectionRange(nextCursor, nextCursor);
+        });
+      });
 
 
     document
@@ -9252,7 +9748,6 @@ async function checkAuthentication() {
           */
 
           wireEvents();
-          observeDashboardPanels();
           /* Load reminder controls */
           renderReminderSettings();
 
@@ -9270,6 +9765,8 @@ async function checkAuthentication() {
           switchPage(
             "dashboard"
           );
+
+          observeDashboardPanels();
 
           showProfileCompletionPopup();
 

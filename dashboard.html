@@ -129,6 +129,25 @@
           <span class="btn-icon" aria-hidden="true">+</span>
           <span class="btn-label">Add Transaction</span>
         </button>
+        <div class="notification-menu" id="notificationMenu">
+          <button class="icon-btn notification-trigger" id="notificationToggle" type="button" aria-label="Open notifications" aria-haspopup="true" aria-expanded="false" title="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+              <path d="M10 21h4"></path>
+            </svg>
+            <span class="notification-badge" id="notificationBadge" aria-hidden="true" hidden></span>
+          </button>
+          <section class="notification-dropdown" id="notificationDropdown" aria-label="Notifications" hidden>
+            <div class="notification-panel-header">
+              <div>
+                <h2>Notifications</h2>
+                <p id="notificationUnreadSummary">You’re all caught up.</p>
+              </div>
+              <button class="notification-mark-read" id="markNotificationsRead" type="button">Mark all read</button>
+            </div>
+            <ul class="notification-list" id="notificationList"></ul>
+          </section>
+        </div>
       </div>
     </header>
 
@@ -229,12 +248,12 @@
               <span id="budgetRemaining">₹0 remaining</span>
             </div>
           </article>
-          <article class="panel">
+          <article class="panel dashboard-savings-panel">
             <div class="panel-head panel-head-row">
               <div><h2>Savings Progress</h2><p id="dashboardSavingsSummary">No savings goals yet.</p></div>
               <button class="link-btn-subtle" type="button" data-dashboard-page="savings">View goals</button>
             </div>
-            <div id="dashboardSavingsProgress"></div>
+            <div class="dashboard-savings-goals" id="dashboardSavingsProgress"></div>
           </article>
           <article class="panel">
             <div class="panel-head panel-head-row">
@@ -859,11 +878,13 @@
                 <div class="profile-field">
                   <label for="profileStudentMode">Student Type</label>
                   <select id="profileStudentMode">
-                    <option value="">Choose a mode</option>
-                    <option value="hostel">Hostel Student</option>
-                    <option value="day-scholar">Day Scholar</option>
+                    <option value="">Choose a student type</option>
                   </select>
                   <small>Used to recommend relevant transaction categories.</small>
+                  <div id="profileCustomStudentTypeField" class="profile-custom-student-type" hidden>
+                    <label for="profileCustomStudentType">Enter your student type</label>
+                    <input id="profileCustomStudentType" type="text" maxlength="60" placeholder="e.g. Coaching Student" autocomplete="off">
+                  </div>
                 </div>
                 <div class="profile-field profile-field-full">
                   <label for="profileEmail">Email Address</label>
